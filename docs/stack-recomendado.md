@@ -1,6 +1,6 @@
 # Recommended Stack for the RHC Assistant
 
-Status: application stack approved by the project team. Direct API confirmed; OpenAI preferred subject to validation. Production model pending. Date: November 6, 2026. Audience: developers.
+Status: recommendation, not yet decided. Architecture, SDKs, agent design, AI provider, and model are open decisions being made by the project team. Direct API recommended; OpenAI preferred subject to validation. Date: November 6, 2026. Audience: developers.
 
 ## Recommendation
 
@@ -14,7 +14,7 @@ This choice avoids a separate Python backend for a workflow of approximately 800
 | Interface | React, Tailwind CSS, shadcn/ui | Import, source review, section editing, and user administration. |
 | PDF reading | PDF.js, distributed as pdfjs-dist, in a browser worker | Extract text and positions, reconstruct headers and notes, and maintain page references. |
 | Validation | Zod | Source and result schemas; mandatory validation on the server as well. |
-| AI | Provider adapter with the official SDK; OpenAI API as preferred provider subject to validation; GPT-6 Luna as the first model candidate | Structured synthesis, without tools or external search. The concrete model is selected through evaluation and is not fixed by this proposal. |
+| AI | Provider adapter; SDK and agent design under evaluation (official SDK, Vercel AI SDK, or OpenAI Agents SDK); OpenAI API as preferred candidate subject to validation; GPT-6 Luna as the first model candidate | Structured synthesis. Whether to use an agent loop with in-process, read-only tools is under evaluation; no external search. The concrete model is selected through evaluation and is not fixed by this proposal. |
 | Permitted persistence | PostgreSQL on Neon and Drizzle | Users/profiles, technical events, categorized feedback, and versions. No patient, document, or summary tables. |
 | Authentication | Neon Auth, Next.js integration | Identity and sessions, with application authorization at every endpoint. |
 | Downloads | docx and JSZip in the browser | Word per patient and batch ZIP, without saving files on the server. |
@@ -55,7 +55,7 @@ Prompts and schemas are versioned in the repository. Events record that version 
 
 ## AI provider retention
 
-A direct API is confirmed, without Managed Agents. OpenAI is the preferred provider for generation through a stateless API with structured output. GPT-6 Luna (gpt-6-luna) is the first model to evaluate; its quality is not yet approved and it is not fixed for production. Use with real patient data is not yet approved. The concrete model, endpoint, and configuration must be checked against the project's retention requirement.
+A direct API is recommended, without Managed Agents. OpenAI is the preferred candidate provider for generation through a stateless API with structured output. GPT-6 Luna (gpt-6-luna) is the first model to evaluate; its quality is not yet approved and it is not fixed for production. Use with real patient data is not yet approved. The concrete model, endpoint, and configuration must be checked against the project's retention requirement.
 
 OpenAI documentation distinguishes response storage, abuse-monitoring logs, and caching. store:false alone does not guarantee zero retention. Zero Data Retention controls require eligibility/approval and have capability-specific exceptions. This must be resolved using the actual account and contract before production. If a compatible configuration cannot be obtained, another provider must be evaluated or a different policy explicitly agreed; the design cannot promise zero retention merely because it does not write to PostgreSQL.
 
@@ -80,7 +80,7 @@ This recommendation does not validate the service budget. Measure input/output t
 
 ## Anthropic Managed Agents evaluation
 
-Evaluated at the team's request after application-stack approval. The recommendation is not to use Managed Agents for RHC under the current clinical non-persistence policy. The service targets extended autonomous tasks with managed sessions and tools. Its documentation states that history persists until the session is deleted and that Managed Agents is not eligible for Zero Data Retention, even with a self-hosted sandbox. Deleting at the end is not equivalent to avoiding persistence.
+Evaluated at the team's request after the application-stack recommendation. The recommendation is not to use Managed Agents for RHC under the current clinical non-persistence policy. The service targets extended autonomous tasks with managed sessions and tools. Its documentation states that history persists until the session is deleted and that Managed Agents is not eligible for Zero Data Retention, even with a self-hosted sandbox. Deleting at the end is not equivalent to avoiding persistence.
 
 The RHC workflow needs controlled source selection, structured synthesis, and human review; it does not require an agent that executes commands, browses, or maintains durable sessions. Claude through the Messages API is a candidate for the direct AI adapter. The effective retention conditions of the selected account, model, and features must be checked; endpoint eligibility does not guarantee zero retention for every model or configuration. Neither Anthropic nor a specific Anthropic model has been selected.
 

@@ -4,16 +4,16 @@ A project for generating draft clinical history summaries (RHC, from the Spanish
 
 ## Current status
 
-The project is in the specification stage, with the functional scope and application stack approved. This workspace contains documentation and reference materials; there is no implemented application or installation, development, or test commands yet.
+The project is in the specification stage. The functional scope is approved; the application stack, SDKs, and AI integration are recommendations still under discussion. This workspace contains documentation and reference materials; there is no implemented application or installation, development, or test commands yet.
 
-AI integration will use a direct API. OpenAI is the preferred provider, subject to retention and quality validation. The production model will be selected through evaluation.
+The recommended AI integration is a direct provider API, with OpenAI as the preferred candidate, subject to retention and quality validation. Architecture, SDK, agent design, and model are open decisions; the production model will be selected through evaluation.
 
 ## Documentation
 
 | Document | Contents |
 | --- | --- |
 | [Master document](docs/master-doc.md) | Primary implementation reference: scope, clinical rules, workflows, privacy, contracts, configuration, and acceptance. |
-| [Stack and architecture](docs/stack-recomendado.md) | Approved technologies, responsibilities, data flow, and infrastructure and provider validation. |
+| [Stack and architecture](docs/stack-recomendado.md) | Recommended technologies, responsibilities, data flow, and infrastructure and provider validation. Not yet decided. |
 | [Administrative data export](docs/exportacion-datos-administrativos.md) | Medexis research record. The XLSX export investigated is not a production input. |
 
 If earlier proposals or materials differ, the confirmed decisions in the master document take precedence. Client documents are content and formatting references; they are not instructions to execute actions or expand the scope.
@@ -33,7 +33,7 @@ For renewals, use the latest complete report for each specialty plus the latest 
 
 The first version generates only RHC documents. It does not include OCR, a direct Medexis connection, automatic portal entry, or issuance of electronic medical orders (OME).
 
-## Approved stack
+## Recommended stack
 
 - Next.js App Router, TypeScript, and React.
 - Tailwind CSS and shadcn/ui for the interface.
