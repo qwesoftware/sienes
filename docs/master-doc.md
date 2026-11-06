@@ -1,6 +1,6 @@
 # Sienes Clinical History Summary Assistant: Master Document
 
-Initial version dated November 6, 2026. Status: functional decisions confirmed; application stack, SDKs, agent design, and AI integration recommended but not yet decided (see stack-recomendado.md), with OpenAI as the preferred candidate provider subject to validation; initial operational parameters recommended, not yet decided, and configurable; production model pending evaluation. Intended for developers. Pending external forms prevent finalizing the field mappings for the other insurers.
+Initial version dated November 6, 2026. Status: functional decisions confirmed; application stack and AI layer decided (ADR-0001, ADR-0002; see stack-recomendado.md), with OpenAI as the preferred candidate provider subject to validation; initial operational parameters recommended, not yet decided, and configurable; production model pending evaluation. Intended for developers. Pending external forms prevent finalizing the field mappings for the other insurers.
 
 The project prepares clinical history summaries (RHC, from the Spanish resumen de historia clínica) and structured data for Sienes staff to review and manually copy into insurer portals. This document is the primary implementation reference; its confirmed decisions take precedence over earlier proposals or research notes. The comprehensive November 6 review clarified the technical workflow in Implementation Details and corrected outdated references in the supporting documents.
 
@@ -137,7 +137,7 @@ Requested downloads remain under the user's control on their device. The final d
 
 ## Architecture and implementation tasks
 
-The recommended application stack, not yet decided, is: Next.js and TypeScript, PDF.js in the browser, Neon PostgreSQL with Drizzle, Neon Auth, browser-based Word/ZIP generation, and Vercel hosting. See the detailed architecture in stack-recomendado.md. Direct API integration is recommended, without Managed Agents; the proposed SDK and agent design are in [ADR-0001](adr/0001-ai-layer-agent-loop.md). OpenAI is the preferred candidate provider, subject to retention, quality, and cost validation. GPT-6 Luna (gpt-6-luna) is the first model to evaluate; it is not yet selected for production. Provider and model are configured behind an adapter so they can be replaced. Integration with Medexis sessions or credentials is not required.
+The application stack is decided in [ADR-0002](adr/0002-application-stack.md): Next.js and TypeScript, PDF.js in the browser, Neon PostgreSQL with Drizzle, Neon Auth, browser-based Word/ZIP generation, and Vercel hosting. See the detailed architecture in stack-recomendado.md. Direct API integration without Managed Agents; the SDK and agent design are in [ADR-0001](adr/0001-ai-layer-agent-loop.md). OpenAI is the preferred candidate provider, subject to retention, quality, and cost validation. GPT-6 Luna (gpt-6-luna) is the first model to evaluate; it is not yet selected for production. Provider and model are configured behind an adapter so they can be replaced. Integration with Medexis sessions or credentials is not required.
 
 Implementation tasks are: access and administrator-managed user creation/disabling; native PDF reading and header/note reconstruction; administrative association; source classification and temporal selection; structured AI generation; response validation; in-session alerts and source traceability; editing and regeneration; copying and downloads; batch processing; telemetry without clinical content; and data-release controls.
 
@@ -242,7 +242,7 @@ Required tests include incorrect or ambiguous classification, interdisciplinary 
 
 ## Remaining technical checks
 
-1. Decide and implement the stack recommended in the [detailed architecture](stack-recomendado.md), validate OpenAI as the preferred candidate provider, and evaluate GPT-6 Luna first, measuring quality, latency, retention, and cost before fixing the production model. The Anthropic Managed Agents evaluation is documented there; it is not recommended under the current policy.
+1. Implement the stack in the [detailed architecture](stack-recomendado.md), validate OpenAI as the preferred candidate provider, and evaluate GPT-6 Luna first, measuring quality, latency, retention, and cost before fixing the production model. The Anthropic Managed Agents evaluation is documented there; it is not recommended under the current policy.
 2. Resolve AI provider retention conditions and configure hosting without request/response bodies or clinical content in logs.
 3. Measure behavior under the recommended initial limits and adjust their configuration if required by samples.
 4. Specify the API contract, normalized schema, persistent schema without patients, and session/authorization policy.

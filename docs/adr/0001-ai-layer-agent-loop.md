@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # AI layer: Vercel AI SDK agent loop with in-process, read-only tools

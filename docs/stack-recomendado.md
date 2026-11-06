@@ -1,6 +1,6 @@
 # Recommended Stack for the RHC Assistant
 
-Status: recommendation, not yet decided. Architecture, SDKs, agent design, AI provider, and model are open decisions being made by the project team. Direct API recommended; OpenAI preferred subject to validation. Date: November 6, 2026. Audience: developers.
+Status: stack and AI layer decided on November 6, 2026 ([ADR-0001](adr/0001-ai-layer-agent-loop.md), [ADR-0002](adr/0002-application-stack.md)); operational limits are recommendations; AI provider and model pending validation. Audience: developers.
 
 ## Recommendation
 
@@ -14,12 +14,12 @@ This choice avoids a separate Python backend for a workflow of approximately 800
 | Interface | React, Tailwind CSS, shadcn/ui | Import, source review, section editing, and user administration. |
 | PDF reading | PDF.js, distributed as pdfjs-dist, in a browser worker | Extract text and positions, reconstruct headers and notes, and maintain page references. |
 | Validation | Zod | Source and result schemas; mandatory validation on the server as well. |
-| AI | Vercel AI SDK agent loop (`ToolLoopAgent`) with provider packages, proposed in [ADR-0001](adr/0001-ai-layer-agent-loop.md); OpenAI API as preferred candidate subject to validation; GPT-6 Luna as the first model candidate | Structured synthesis with in-process, read-only tools and app-selected prompt modules; no external tools, no gateway, no sessions. The concrete model is selected through evaluation and is not fixed by this proposal. |
+| AI | Vercel AI SDK agent loop (`ToolLoopAgent`) with provider packages, decided in [ADR-0001](adr/0001-ai-layer-agent-loop.md); OpenAI API as preferred candidate subject to validation; GPT-6 Luna as the first model candidate | Structured synthesis with in-process, read-only tools and app-selected prompt modules; no external tools, no gateway, no sessions. The concrete model is selected through evaluation and is not fixed by this proposal. |
 | Permitted persistence | PostgreSQL on Neon and Drizzle | Users/profiles, technical events, categorized feedback, and versions. No patient, document, or summary tables. |
 | Authentication | Neon Auth, Next.js integration | Identity and sessions, with application authorization at every endpoint. |
 | Downloads | docx and JSZip in the browser | Word per patient and batch ZIP, without saving files on the server. |
 | Testing | Vitest and Playwright | Parser, rules, contracts, authorization, review, downloads, batches, and non-persistence controls. |
-| Hosting | Vercel | Web and endpoints; explicit no-cache configuration and logs without clinical bodies. |
+| Hosting | Vercel, function region `gru1` (São Paulo) | Web and endpoints; explicit no-cache configuration and logs without clinical bodies. |
 
 ## Data flow
 
