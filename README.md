@@ -2,6 +2,8 @@
 
 A project for generating draft clinical history summaries (RHC, from the Spanish resumen de historia clínica) from Medexis exports. Sienes staff review and correct the results before copying fields into health insurer portals or downloading a Word document.
 
+Sienes web: https://www.sienes.com.ar/
+
 ## Current status
 
 The project is in the specification stage. The functional scope is approved and the application stack and AI layer are decided ([ADR-0001](docs/adr/0001-ai-layer-agent-loop.md), [ADR-0002](docs/adr/0002-application-stack.md)); operational limits remain recommendations. This workspace contains documentation and reference materials; there is no implemented application or installation, development, or test commands yet.
@@ -21,15 +23,15 @@ If earlier proposals or materials differ, the confirmed decisions in the master 
 ## Planned workflow
 
 1. Upload exactly one native Medexis PDF per patient, individually or in a batch.
-2. Confirm identity, coverage, request type, and cutoff date.
-3. Classify notes and select the relevant clinical sources.
+2. Confirm identity and coverage, and select the insurer.
+3. The AI proposes the sources per specialty by content; confirm or adjust them.
 4. Generate a draft RHC with references and alerts for missing or contradictory information.
 5. Make corrections and confirm the content review.
 6. Copy fields or download Word; for batches, download a ZIP containing reviewed documents.
 
-Admissions and renewals are included for PAMI, OSDE, Swiss Medical, Unión Personal, and OSTVLA, based on the examples received. Portal-specific fields for insurers other than PAMI remain subject to the pending forms.
+Only renewals are generated, in PAMI format for every insurer (PAMI, OSDE, Swiss Medical, Unión Personal, OSTVLA). Admissions are out of scope.
 
-For renewals, use the latest complete report for each specialty plus the latest subsequent clinical progress note, when available, up to the cutoff date. Include all documented specialties and flag missing information; the system must not invent information to fill gaps.
+The whole exported history is used (about two months). For each specialty, the AI selects by content the latest meaningful entry and its supporting notes; note labels are hints only. Include all documented specialties and flag missing information; the system must not invent information to fill gaps.
 
 The first version generates only RHC documents. It does not include OCR, a direct Medexis connection, automatic portal entry, or issuance of electronic medical orders (OME).
 
@@ -47,9 +49,9 @@ Versions and concrete configuration will be pinned when implementation begins. F
 
 ## Privacy and test data
 
-The application must not retain PDFs, extracted text, patient identifiers, or clinical results in databases, storage, caches, or persistent logs. Clinical work stays in tab memory and is lost when the tab closes, reloads, or the clinical session expires. Downloads remain on the user's device.
+The application never retains PDFs, extracted notes, headers or patient identifiers. Generated drafts, corrected text and ratings are stored pseudonymously for feedback ([ADR-0003](docs/adr/0003-pseudonymous-rhc-storage.md)). Clinical work stays in tab memory and is lost when the tab closes, reloads, or the clinical session expires. Downloads remain on the user's device.
 
-Only users, technical audit records, and categorized feedback without patient content are persisted. Corrections are not stored as pairs of original and corrected text. The AI provider's and hosting provider's effective retention conditions must be verified before processing real patient data.
+Users, technical audit records, ratings and pseudonymous RHC text are persisted. The AI provider's and hosting provider's effective retention conditions must be verified before processing real patient data.
 
 Original clinical materials are used only in the authorized local environment. They must not be committed to version control or included in CI artifacts. Versioned fixtures must be synthetic; the supplied TXT files and screenshots may be reused locally to prepare tests, although they are not production inputs.
 
@@ -67,4 +69,4 @@ Directories containing sensitive materials may be absent from a repository check
 
 ## Next steps
 
-First implement contracts, the parser, and the complete workflow with mocked AI and synthetic data. Then integrate and evaluate classification and generation with the selected provider. Before the pilot, verify restricted access, non-persistence, external retention, quality, and operational limits. The planned Sienes pilot lasts two weeks; its contact person and dates will be coordinated before it starts.
+First implement contracts, the parser, and the complete workflow with mocked AI and synthetic data. Then integrate and evaluate source selection and generation with the selected provider. Before the pilot, verify restricted access, storage rules, external retention, quality, and operational limits. The planned Sienes pilot lasts two weeks; its contact person and dates will be coordinated before it starts.

@@ -1,6 +1,6 @@
 # Sienes Clinical History Summary Assistant: Master Document
 
-Initial version dated November 6, 2026. Status: functional decisions confirmed; application stack and AI layer decided (ADR-0001, ADR-0002; see stack-recomendado.md), with OpenAI as the preferred candidate provider subject to validation; initial operational parameters recommended, not yet decided, and configurable; production model pending evaluation. Intended for developers. Pending external forms prevent finalizing the field mappings for the other insurers.
+Initial version dated November 6, 2026, amended the same day after the design session recorded in [ADR-0003](adr/0003-pseudonymous-rhc-storage.md) and the [RHC generation agent spec](specs/rhc-generation-agent.md): renewals only, no cutoff date, PAMI format for every insurer, pseudonymous storage of RHC text. Status: functional decisions confirmed; application stack and AI layer decided (ADR-0001, ADR-0002; see stack-recomendado.md), with OpenAI as the preferred candidate provider subject to validation; initial operational parameters recommended, not yet decided, and configurable; production model pending evaluation. Intended for developers.
 
 The project prepares clinical history summaries (RHC, from the Spanish resumen de historia clínica) and structured data for Sienes staff to review and manually copy into insurer portals. This document is the primary implementation reference; its confirmed decisions take precedence over earlier proposals or research notes. The comprehensive November 6 review clarified the technical workflow in Implementation Details and corrected outdated references in the supporting documents.
 
@@ -8,19 +8,19 @@ The project prepares clinical history summaries (RHC, from the Spanish resumen d
 
 - A restricted-access web application for Sienes, based on option 1 of the quote.
 - Manual import of Medexis exports, generation of a draft RHC, editing, review, and preparation of fields for copying or downloading.
-- Only clinical output: RHC. Treatment plans and initial or semiannual reports are sources or references; generating them as additional documents is outside the contracted scope.
-- Insurers identified in the supplied examples: PAMI, OSDE, Swiss Medical, Unión Personal, and OSTVLA. Final fields for the latter four require the forms already requested.
+- Only clinical output: the RHC for renewals, in PAMI format. Admissions, treatment plans and initial or semiannual reports are out of scope; reports are sources or references.
+- Insurers identified in the supplied examples: PAMI, OSDE, Swiss Medical, Unión Personal, and OSTVLA. The PAMI format is the general format for all of them; insurer-specific forms are not awaited.
 - Standard users and one initial administrator. Both can generate, correct, and download. The administrator's only additional capability is creating and disabling users. No public signup or additional privileges over clinical data. Disabling means preventing access and revoking sessions, not deleting user audit records.
 - Individual and batch uploads. Stated reference volume: approximately 800 cases per month. Initial limits: 10 MB and 300 pages per PDF, 20 patients per batch, and 2 concurrent patients; configurable as specified in the operational section.
 - Professional review of medical content before use. Equal permissions do not establish a user's clinical qualifications.
 - No direct Medexis connection, portal pre-filling, automatic issuance or download of electronic medical orders (OME), email sending, OP management, or expiration tracking.
-- The prohibition on retaining patient data supersedes the clinical-document storage included in the original quote. The scope covering multiple insurers and batches must be reflected in the final agreement.
+- Source material and identifiers are never retained; generated and corrected RHC text is stored pseudonymously for feedback (ADR-0003). The scope covering multiple insurers and batches must be reflected in the final agreement.
 
 ## Inputs
 
 ### PDF as the only production input
 
-A native PDF from Medexis medical-history printing was validated; it combines administrative data and clinical progress notes. The sample has 91 pages, with extractable text on every page, weighs approximately 0.47 MB, and contains note headers dated between February 2025 and November 2026. OCR is not required to read its text. This format is confirmed as the only production input in the first version: one file per patient, without TXT, Excel, or screenshots as additional inputs. Missing information is entered manually during the session.
+A native PDF from Medexis medical-history printing was validated; it combines administrative data and clinical progress notes. The sample has 91 pages, with extractable text on every page, weighs approximately 0.47 MB, and contains note headers dated between February 2025 and November 2026. OCR is not required to read its text; a later sample added eight scanned pages in front of the text, which are ignored. This format is confirmed as the only production input in the first version: one file per patient, without TXT, Excel, or screenshots as additional inputs. Missing information is entered manually during the session.
 
 The observed header contains last and first names, DNI (national identity document number), date of birth, age, coverage, plan, and membership details. Notes include date, clinician, specialty, professional registration number, and text. The registration number belongs to the note's author, who is not necessarily the issuer of the future OME. No CUD (disability certificate) field was verified in the header.
 
@@ -28,7 +28,7 @@ The reader must recognize blocks by position and reconstruct notes continuing ac
 
 Identity is obtained from the header and displayed for confirmation. If identification is missing or headers identify different patients, the association must be resolved before generation. Names mentioned inside progress notes do not identify the record holder.
 
-The supported format is exclusively the native Medexis PDF shared by the user. Exactly one PDF is accepted per patient; combining additional sources, readers for other layouts, and OCR are not implemented. Verified compatibility applies to the supplied sample; variations in fields and attachments within the same format require technical verification. Text on a page does not prove that all its images or attachments are readable. Scanned, protected, or insufficiently readable PDFs must be rejected with an explanation and instructions to export again from Medexis; an RHC must not be silently generated from incomplete extraction.
+The supported format is exclusively the native Medexis PDF shared by the user. Exactly one PDF is accepted per patient; combining additional sources, readers for other layouts, and OCR are not implemented. Verified compatibility applies to the supplied sample; variations in fields and attachments within the same format require technical verification. Text on a page does not prove that all its images or attachments are readable. Image-only pages are ignored without an alert. A protected PDF, or one with no text layer at all, is rejected with an explanation and instructions to export again from Medexis.
 
 ### Development and testing materials
 
@@ -44,20 +44,20 @@ Original files remain sensitive and are used locally in the authorized environme
 
 Data is extracted from the PDF header and displayed for review. Manual entry covers missing information and corrections. TXT files, screenshots, and the verified administrative Excel remain research and testing materials, without production readers in the first version. See the [reference administrative export procedure](exportacion-datos-administrativos.md).
 
-The application requests only the data needed for destination fields. Member numbers, identity document numbers, and codes are treated as strings to preserve leading zeros and avoid precision loss. Date of birth allows age to be calculated at the cutoff date, flagging contradictions with ages stated in narrative text. An unspecified CUD status must not be interpreted as no CUD.
+The application requests only the data needed for destination fields. Member numbers, identity document numbers, and codes are treated as strings to preserve leading zeros and avoid precision loss. Date of birth allows age to be calculated at the export date, flagging contradictions with ages stated in narrative text. An unspecified CUD status must not be interpreted as no CUD.
 
 In batches, every case must have an explicit association between its sole PDF, administrative data, and result. The application must not infer identity from names mentioned in notes or from files appearing next to each other in a list.
 
 ### Request context
 
-The user specifies coverage, cutoff date, and, where applicable, service and request type. Admissions and renewals are included, following the supplied examples. CUD is represented as yes, no, or no information. The client's preliminary response states that insurers are similar and the difference is CUD, but internal confirmation is still pending: implement a common clinical structure without inventing different sections or requirements based on CUD. Its status can be entered manually and remains no information when undocumented. The supplied historical period and all detected specialties are shown before generation.
+The user specifies the insurer. Every case is a renewal and the whole export is used; there is no cutoff date or request type. CUD is represented as yes, no, or no information. The client's preliminary response states that insurers are similar and the difference is CUD, but internal confirmation is still pending: implement a common clinical structure without inventing different sections or requirements based on CUD. Its status can be entered manually and remains no information when undocumented. The supplied historical period and all detected specialties are shown before generation.
 
 ## Individual workflow
 
 1. Sign in with an authorized account.
 2. Upload one patient's native PDF and confirm or complete its header data.
-3. Select request context and cutoff date.
-4. Validate the files, recognize notes, and propose classification by specialty and note type.
+3. Select the insurer.
+4. Validate the file, recognize notes, and let the AI propose the sources per specialty by content.
 5. Show the sources to be used and flag ambiguities, missing information, unread attachments, and contradictions.
 6. Generate a structured draft RHC supported by the available sources.
 7. Allow corrections and source review, with dates and authors visible during the session.
@@ -86,7 +86,7 @@ The screen shows progress and allows individual review before use. The combined 
 
 ## Clinical selection and generation
 
-Confirmed renewal rule: for each specialty present in the documentation up to the cutoff, use the latest complete report as the baseline and supplement it with the latest subsequent note contributing clinical information, if available, respecting the cutoff date. An absence or administrative note does not replace the report or count as a clinical update. If a later note contradicts the report, show both sources and a review alert; the system must not resolve the contradiction independently. If no complete report exists, use the available progress notes and flag the missing report.
+Renewal rule: the reviewer exports the period that matters (about two months) and the whole export is used. For each specialty present, the AI selects by content the entry that best describes current status and the notes that support diagnosis, history and medication; note types and author labels are hints only, because they are often wrong. An absence or administrative note is never a clinical source. If a later note contradicts a report, show both sources and a review alert; the system must not resolve the contradiction independently. The reviewer confirms or adjusts the proposed sources before generation.
 
 The underlying medical history must supply relevant history, diagnosis, and medical indication where applicable; selecting only the latest therapy notes does not guarantee that these data are available. Do not invent diagnoses, doses, scores, frequencies, codes, or plans to fill gaps.
 
@@ -94,11 +94,11 @@ The initial common RHC structure includes reason for consultation, documented di
 
 Generate the draft from available information and show specific alerts so the user can request missing information. Contradictions are presented with their sources for manual resolution. Missing clinical information allows a partial draft; an unreadable file or ambiguous patient association requires correction before processing the case.
 
-Confirmed rule: include all specialties present in documentation up to the cutoff date. A specialty omitted from a historical example is not used as an exclusion filter. Keep older source dates visible, and do not infer that a service remains active or prescribe its continuation merely because its progress is included. If an area has only administrative or absence notes, indicate that no clinical content is available to summarize.
+Confirmed rule: include all specialties present in the export. A specialty omitted from a historical example is not used as an exclusion filter. Keep older source dates visible, and do not infer that a service remains active or prescribe its continuation merely because its progress is included. If an area has only administrative or absence notes, indicate that no clinical content is available to summarize.
 
 Unconfirmed differences between examples must not become insurer-specific mandatory rules. Do not impose an unspecified clinical age-of-information threshold; show dates for review.
 
-For admissions, use clinical documentation available up to the cutoff to describe the reason for admission, history, initial status, and documented assessments, following the admission examples received. Do not require a renewal progress note or invent missing objectives or plans. Keep the same common structure; request type changes selection and wording, not the set of documents produced.
+Admissions are out of scope for this version; the application generates renewals only.
 
 ## Output data and PAMI
 
@@ -107,29 +107,29 @@ During the session, the result must separate patient and coverage data, textual 
 | PAMI field | Expected source and status |
 | --- | --- |
 | Member number | PDF header or manual entry. |
-| Name, document number, and age | PDF header and date of birth at cutoff; the portal may resolve these from the member number. |
+| Name, document number, and age | PDF header; the portal may resolve these from the member number. |
 | ICD-10 diagnosis (Diagnóstico CIE-10) | Explicit clinical source and reviewed selection; do not infer a code from symptoms. |
 | Procedure, module, and quantity | Medical indication or user-validated selection; do not generalize values from the example. |
 | Indicaciones | RHC and progress across all documented specialties; length limits pending. |
 | Clinician and registration numbers | Prescriber's context in the portal. A progress note's author is not equivalent to the OME issuer. |
 
-The complete reference OME confirms an output arrangement but does not supply a general catalog of codes, quantities, or services. Mappings for other insurers must not be declared final until their forms are received.
+The complete reference OME confirms an output arrangement but does not supply a general catalog of codes, quantities, or services. The PAMI arrangement is used for every insurer.
 
 The first version does not include nomenclature catalog search or membership validation against portals. Codes and quantities are editable fields: they are proposed only when explicitly present in a source. If missing, leave them blank with an alert; users may complete them without the application certifying their administrative validity. The prescriber and registration numbers are not required RHC fields and must not be populated from a progress note's author. No ready-to-issue OME is generated.
 
-Copying Indicaciones combines the RHC and its specialty progress sections without repeating the same text. Without a verified portal limit, do not promise that any length will be accepted, do not truncate automatically, and display a character count. Other insurers can receive the common RHC; their exclusive fields must not be presented as a validated form.
+Copying Indicaciones combines the RHC and its specialty progress sections without repeating the same text. Without a verified portal limit, do not promise that any length will be accepted, do not truncate automatically, and display a character count. Other insurers receive the same PAMI-format output.
 
 Confirmed format: editable Word and per-field copying. For batches, a ZIP of reviewed Word documents. JSON is used internally and as the API contract, without JSON downloads in the first version.
 
 ## Privacy and traceability
 
-Clinical files, administrative screenshots, extracted text, identifiers, and clinical results must not be retained in the application's database or persistent storage. This condition must also be checked across logs, queues, monitoring, errors, caches, and processing providers. Deleting the input file is insufficient if another layer retains content.
+Clinical files, administrative screenshots, extracted notes, headers, identifiers and file names must not be retained in the application's database or persistent storage. Generated drafts, corrected text and ratings are stored pseudonymously under a random case id for 12 months, for feedback only (ADR-0003). The no-retention condition for source material must also be checked across logs, queues, monitoring, errors, caches, and processing providers.
 
 Data is used transiently during processing and review. Clinical work lives only in tab memory: closing or reloading requires reimporting. Warn before leaving when the browser permits and offer an action to finish and clear the session. The clinical session expires after 30 minutes of user inactivity. Warn 5 minutes before expiration and offer Continuar trabajando (Continue working). Pause the countdown during user-initiated generation; on expiration, cancel pending work and clear transient content. The authentication session is independent and may persist without clinical content. Provider retention, reference cleanup, and in-flight request behavior must be verified before using real patient data; forensic memory erasure or immediate third-party cancellation is not promised.
 
 Instrumentation uses an explicit allowlist of fields. Disable request/response body capture, file-name capture, screen recordings, and session replay.
 
-Technical metrics, error categories, and improvements without patient references may be stored. Do not store original/corrected clinical text pairs by default. Any improvement example must be synthetic or follow an approved procedure that prevents linkage to a patient.
+Technical metrics, error categories, and improvements without patient references may be stored. Stored RHC text must not be linkable to a patient: no identifiers, no file names, no header fields.
 
 Technical traceability may include application user, random execution identifier, application/instruction/model version, duration, counts, and sanitized error status. It must not serve as a patient history, and identity hashes or file names containing identifiers must not be retained.
 
@@ -139,7 +139,7 @@ Requested downloads remain under the user's control on their device. The final d
 
 The application stack is decided in [ADR-0002](adr/0002-application-stack.md): Next.js and TypeScript, PDF.js in the browser, Neon PostgreSQL with Drizzle, Neon Auth, browser-based Word/ZIP generation, and Vercel hosting. See the detailed architecture in stack-recomendado.md. Direct API integration without Managed Agents; the SDK and agent design are in [ADR-0001](adr/0001-ai-layer-agent-loop.md). OpenAI is the preferred candidate provider, subject to retention, quality, and cost validation. GPT-6 Luna (gpt-6-luna) is the first model to evaluate; it is not yet selected for production. Provider and model are configured behind an adapter so they can be replaced. Integration with Medexis sessions or credentials is not required.
 
-Implementation tasks are: access and administrator-managed user creation/disabling; native PDF reading and header/note reconstruction; administrative association; source classification and temporal selection; structured AI generation; response validation; in-session alerts and source traceability; editing and regeneration; copying and downloads; batch processing; telemetry without clinical content; and data-release controls.
+Implementation tasks are: access and administrator-managed user creation/disabling; native PDF reading and header/note reconstruction; administrative association; AI source selection with reviewer confirmation; structured AI generation; response validation; in-session alerts and source traceability; editing and regeneration; copying and downloads; batch processing; telemetry without clinical content; and data-release controls.
 
 Disabling a user revokes sessions and is checked on the next server request; a request already sent to the provider cannot be reversed. The last administrator cannot be disabled without provisioning a replacement.
 
@@ -151,7 +151,7 @@ Samples include two cases with few medical notes, two with interdisciplinary rep
 
 Some exports contain an already-written RHC. Separate two tests: generation from primary progress notes, excluding the target summary; and assisted updating of a prior summary. Copying an existing summary does not count as an independent generation test.
 
-Checks must cover factual and numerical fidelity, cutoff date, inclusion of all documented specialties, absences, source age, header ambiguity, missing information, contradictions, unread attachments, identifier preservation, patient separation, partial batch errors, and clinical non-persistence.
+Checks must cover factual and numerical fidelity, inclusion of all documented specialties, absences, source age, header ambiguity, missing information, contradictions, unread attachments, identifier preservation, patient separation, partial batch errors, and clinical non-persistence.
 
 Comparison against examples evaluates facts and section coverage without requiring identical wording. Include a change of clinician within the same specialty to verify that it is not treated as a different area.
 
@@ -159,15 +159,15 @@ Receiving and reading files does not constitute clinical validation or a system 
 
 ## Feedback and prompt improvement
 
-Every manual correction produces a logical edit event without persisting original clinical text, new text, diffs, identifiers, or file names. To avoid recording every keystroke, group changes by field on blur or review confirmation, with deduplication and random work-session identifiers that do not identify the patient.
+Every manual correction produces an edit event without identifiers or file names; the generated draft and the final corrected text are stored pseudonymously on review confirmation (ADR-0003). To avoid recording every keystroke, group changes by field on blur or review confirmation, with deduplication and random work-session identifiers that do not identify the patient.
 
-Store section/field, change type (addition, deletion, or modification), prompt version, model/schema version, and timestamp. Distinguish scope using enums: administrative data, context, source selection, or generated content, so a header correction is not attributed to the prompt. AI versions are not applicable if no call has occurred yet. Offer optional reason categories such as omission, incorrect fact, format, wording, or source selection. Without a selected reason, keep the event uncategorized; the system must not invent the reason for an edit. There is no persistent free-text field for pasting clinical text.
+Store section/field, change type (addition, deletion, or modification), prompt version, model/schema version, and timestamp. Distinguish scope using enums: administrative data, context, source selection, or generated content, so a header correction is not attributed to the prompt. AI versions are not applicable if no call has occurred yet. Offer optional reason categories such as omission, incorrect fact, format, wording, or source selection. Without a selected reason, keep the event uncategorized; the system must not invent the reason for an edit. The optional reason remains a category, not free text.
 
-This identifies which sections fail and why, but cannot reconstruct a specific clinical correction. To improve instructions, review aggregates and write general rules or synthetic examples. Test proposals against fixtures and publish a new prompt version; user changes do not automatically modify the global prompt. Prompt administration belongs to the development process and does not expand the permissions of the Sienes user administrator.
+To improve instructions, review the ratings and the stored draft and corrected text in the development process, and write general rules or synthetic examples. Test proposals against fixtures and publish a new prompt version; user changes do not automatically modify the global prompt. Prompt administration belongs to the development process and does not expand the permissions of the Sienes user administrator.
 
 ## Sienes pilot period
 
-After the initial delivery, run a two-week pilot with a midpoint review and a closing review. Coordinate the contact person and dates before the pilot begins. Record defects, prompt changes, and checks without retaining patient content. Review correction metrics, extraction failures, missing information, and functional feedback without capturing clinical content. The pilot does not replace technical controls or authorize external processing without verified privacy conditions.
+After the initial delivery, run a two-week pilot with a midpoint review and a closing review. Coordinate the contact person and dates before the pilot begins. Record defects, prompt changes, and checks without retaining identifiers. Review correction metrics, extraction failures, missing information, and functional feedback without capturing identifiers. The pilot does not replace technical controls or authorize external processing without verified privacy conditions.
 
 ## Recommended operational configuration
 
@@ -192,7 +192,7 @@ The model is configured on the server, initially GPT-6 Luna for evaluation. Reco
 
 Implement separate Zod contracts for sources, results, and telemetry. Sources include administrative identity in memory, coverage/CUD, and notes with dates, author, specialty, type, and pages; results include sections and all documented areas, portal fields, references, alerts, and review state; telemetry accepts only predefined metadata. Do not reuse the clinical object as a technical event body.
 
-Separate development, testing, and production, with independent credentials and server-only secrets. Vercel and Neon resources are created only under the info@qwesoftware.com accounts (ADR-0002). CI and versioned fixtures use synthetic data; the supplied real files remain outside the repository and automated artifacts. When initializing the repository, explicitly exclude the existing clinical-documentation and export directories, temporary files, and secrets; do not add the entire workspace by default. Provision the first administrator through a deployment procedure without public signup. The developer specifies endpoints, migrations, and token limits when implementing these contracts, respecting the prohibition on persisting clinical data.
+Separate development, testing, and production, with independent credentials and server-only secrets. Vercel and Neon resources are created only under the info@qwesoftware.com accounts (ADR-0002). CI and versioned fixtures use synthetic data; the supplied real files remain outside the repository and automated artifacts. When initializing the repository, explicitly exclude the existing clinical-documentation and export directories, temporary files, and secrets; do not add the entire workspace by default. Provision the first administrator through a deployment procedure without public signup. The developer specifies endpoints, migrations, and token limits when implementing these contracts, respecting the storage rules in Privacy and traceability.
 
 ## Implementation details
 
@@ -200,13 +200,13 @@ Separate development, testing, and production, with independent credentials and 
 
 Reconstruct the PDF locally into notes with a random session identifier, recorded date, narrative date if present, author, specialty, text, and pages. A repeated header for the same record holder does not create another patient. Incompatible headers block the case; a manual name correction must not automatically bypass actual patient mixing. Each note's membership in its file remains fixed. Do not perform external searches or open attachment links.
 
-Classification precedes temporal selection. The parser identifies notes using the Medexis layout and normalizes headers through a versioned catalog of specialty names and aliases. It must not determine that a note is a complete report based on length. A first structured call to the AI adapter classifies notes as complete report, clinical progress note, administrative/absence, prior summary, or other/ambiguous, and assigns the described areas. A complete report is a report or assessment describing the clinical status of an area or period, following the supplied examples, rather than an isolated session note; if the distinction cannot be made, mark it ambiguous. This call also processes clinical data and is subject to the same retention restrictions. An interdisciplinary note may contribute to multiple areas through references to the same text, without being duplicated as a document.
+The parser identifies notes using the Medexis layout and normalizes headers through a versioned catalog of specialty names and aliases. It must not determine that a note is a complete report based on length. A first structured call (select) reads every note and returns, per specialty, the entry that best describes current status and the supporting notes, labelling each as complete report, clinical progress note, administrative/absence, prior summary, or other/ambiguous, and assigning the described areas by content. A complete report is a report or assessment describing the clinical status of an area or period, following the supplied examples, rather than an isolated session note; if the distinction cannot be made, mark it ambiguous. This call also processes clinical data and is subject to the same retention restrictions. An interdisciplinary note may contribute to multiple areas through references to the same text, without being duplicated as a document.
 
 Distinguish the author's area from areas described in the content. If an area cannot be resolved, retain it as Sin especialidad identificada (No specialty identified) with an alert; do not discard it or assign one arbitrarily. Users can correct classification or selection in the optional source panel using understandable labels. Show ambiguous types before generation, without automatically converting a progress note into a complete report. Users are not required to manually reclassify every note.
 
-The application applies the confirmed temporal rule to that classification and displays proposed sources. A second call generates the RHC using only selected sources and relevant clinical context. The contract separates these steps so the AI does not silently decide which history to ignore. Do not add a call per specialty or split the history into chunks without an additional evaluated strategy. Count both calls and their retries when measuring cost and latency.
+The application displays the proposed sources and the reviewer confirms or adjusts them. A second call generates the RHC using only the confirmed sources. The contract separates these steps so the reviewer sees what the AI chose before anything is written. Do not add a call per specialty or split the history into chunks without an additional evaluated strategy. Count both calls and their retries when measuring cost and latency.
 
-Interpret the cutoff as an inclusive calendar date in America/Argentina/Buenos_Aires; default to the current day and allow changes. Use the recorded date for sorting and filtering; if the text states another date, retain it and flag the discrepancy. Do not automatically include a note without a reliable date in a historical reconstruction. Use document order as a technical tiebreaker; if it changes clinical selection and no reliable time is available, show both sources and the ambiguity.
+There is no cutoff date. Use the recorded date for sorting; if the text states another date, retain it and flag the discrepancy. A note without a reliable date is shown with an alert. Use document order as a technical tiebreaker; if it changes clinical selection and no reliable time is available, show both sources and the ambiguity.
 
 History and diagnoses may come from notes older than the latest report. Preserve their dates. Do not present older medication as current treatment without support; distinguish previously documented medication from current medication supported by an explicit source, and alert when current status is unknown. The latest progress note does not erase incompatible report data or become a new prescription on its own.
 
@@ -228,7 +228,7 @@ Per-case states are reading, confirmation required, analyzing, ready to generate
 
 The 120-second limit and transient-error retry apply to each analysis or generation call, not the complete two-stage workflow. The browser coordinates the retry through a new HTTP attempt so a function is not kept open across two timeouts and backoff. Disable hidden SDK retries. Concurrency is counted by case throughout the workflow; the server also limits calls at each endpoint. A timeout does not prove the provider stopped execution; single billing or exactly-once processing is not promised.
 
-Configuration adds separate limits for HTTP body size, input/output tokens, rate, and per-user/global concurrency. Document and test effective values before the pilot, accounting for both stages and the selected model. If text exceeds the budget, explain the limit and request an export for a shorter period; do not silently summarize or truncate it to make it fit. Preliminary analysis must not receive content after the cutoff. Clinical requests and responses use Cache-Control: no-store; they are not stored in persistent query caches or included in URLs, traces, or error messages.
+Configuration adds separate limits for HTTP body size, input/output tokens, rate, and per-user/global concurrency. Document and test effective values before the pilot, accounting for both stages and the selected model. If text exceeds the budget, explain the limit and request an export for a shorter period; do not silently summarize or truncate it to make it fit. Clinical requests and responses use Cache-Control: no-store; they are not stored in persistent query caches or included in URLs, traces, or error messages.
 
 Clinical-session expiration applies to the entire tab, including reviewed cases and the queue. Only user activity resets the timer; polling, progress, and telemetry do not. The pause for automatic processing lasts while clinical calls or bounded retries remain active; a hung request must not pause it indefinitely. Signing out cancels and clears local work. A disabled account is detected when checking the session and before each sensitive request; notify and clear on detection without promising immediate remote clearing of another disconnected tab.
 
@@ -236,21 +236,21 @@ Administration uses individual invitation or activation and the identity provide
 
 ### Build order and release conditions
 
-First implement contracts, the parser, and the complete workflow with mocked AI and synthetic fixtures. Then integrate the adapter and evaluate classification and generation separately. A pilot using real patients requires compatible AI and hosting retention conditions, tested restricted access, effective limits, non-persistence controls, and technical acceptance on available samples beforehand. Model selection is not based solely on price.
+First implement contracts, the parser, and the complete workflow with mocked AI and synthetic fixtures. Then integrate the adapter and evaluate classification and generation separately. A pilot using real patients requires compatible AI and hosting retention conditions, tested restricted access, effective limits, storage controls, and technical acceptance on available samples beforehand. Model selection is not based solely on price.
 
-Required tests include incorrect or ambiguous classification, interdisciplinary notes, admission versus renewal, inclusive cutoff date, undated notes, historical medication, AI responses with nonexistent references, administrative corrections after review, late responses after cancellation, timeout at each stage, rejection of disabled users, and feedback-recording failures without loss of work. These are checks to implement, not results already obtained.
+Required tests include incorrect or ambiguous classification, interdisciplinary notes, undated notes, historical medication, AI responses with nonexistent references, administrative corrections after review, late responses after cancellation, timeout at each stage, rejection of disabled users, and feedback-recording failures without loss of work. These are checks to implement, not results already obtained.
 
 ## Remaining technical checks
 
 1. Implement the stack in the [detailed architecture](stack-recomendado.md), validate OpenAI as the preferred candidate provider, and evaluate GPT-6 Luna first, measuring quality, latency, retention, and cost before fixing the production model. The Anthropic Managed Agents evaluation is documented there; it is not recommended under the current policy.
 2. Resolve AI provider retention conditions and configure hosting without request/response bodies or clinical content in logs.
 3. Measure behavior under the recommended initial limits and adjust their configuration if required by samples.
-4. Specify the API contract, normalized schema, persistent schema without patients, and session/authorization policy.
+4. Specify the API contract, normalized schema, persistent schema without identifiers, and session/authorization policy.
 5. Verify representative native PDFs and attachment coverage. Downloading every history again is not required to begin testing.
 
 ## External dependencies
 
-- Client confirmation about insurer similarity and CUD differences. Forms remain pending for specific fields; proceed with the common structure and verified PAMI mapping, without inventing specific requirements.
+- Client confirmation about CUD differences. The PAMI format is used for every insurer.
 - Contact person and dates for the two-week pilot, with midpoint and closing reviews.
 
-The clinical structure preserves documented diagnosis, history, medication, and medical indication, updates all specialties, and follows the supplied examples as the expected-output reference. These decisions do not need to be asked again. Historical test cutoff dates, source handling, and note classification are engineering specifications, not additional client questions.
+The clinical structure preserves documented diagnosis, history, medication, and medical indication, updates all specialties, and follows the supplied examples as the expected-output reference. These decisions do not need to be asked again. Source handling and note classification are engineering specifications, not additional client questions.

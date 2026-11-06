@@ -15,20 +15,20 @@ This choice avoids a separate Python backend for a workflow of approximately 800
 | PDF reading | PDF.js, distributed as pdfjs-dist, in a browser worker | Extract text and positions, reconstruct headers and notes, and maintain page references. |
 | Validation | Zod | Source and result schemas; mandatory validation on the server as well. |
 | AI | Vercel AI SDK agent loop (`ToolLoopAgent`) with provider packages, decided in [ADR-0001](adr/0001-ai-layer-agent-loop.md); OpenAI API as preferred candidate subject to validation; GPT-6 Luna as the first model candidate | Structured synthesis with in-process, read-only tools and app-selected prompt modules; no external tools, no gateway, no sessions. The concrete model is selected through evaluation and is not fixed by this proposal. |
-| Permitted persistence | PostgreSQL on Neon and Drizzle | Users/profiles, technical events, categorized feedback, and versions. No patient, document, or summary tables. |
+| Permitted persistence | PostgreSQL on Neon and Drizzle | Users/profiles, technical events, categorized feedback, and versions. Pseudonymous RHC drafts, corrected text and ratings (ADR-0003); no patient identifiers, documents or notes. |
 | Authentication | Neon Auth, Next.js integration | Identity and sessions, with application authorization at every endpoint. |
 | Downloads | docx and JSZip in the browser | Word per patient and batch ZIP, without saving files on the server. |
-| Testing | Vitest and Playwright | Parser, rules, contracts, authorization, review, downloads, batches, and non-persistence controls. |
+| Testing | Vitest and Playwright | Parser, rules, contracts, authorization, review, downloads, batches, and storage controls. |
 | Hosting | Vercel, function region `gru1` (São Paulo) | Web and endpoints; explicit no-cache configuration and logs without clinical bodies. |
 
 ## Data flow
 
 1. The browser reads the local PDF. The original file is not uploaded to storage or the AI provider.
 2. PDF.js extracts blocks and positions in a worker. The application identifies the patient from the header and separates the notes. The user confirms identity and coverage.
-3. Administrative fields are separated from clinical content, and the cutoff date is applied. A first structured call classifies notes and their clinical areas; the application applies temporal selection and allows ambiguities to be reviewed. Length or latest date alone does not determine whether a note is a complete report.
+3. Administrative fields are separated from clinical content. A first structured call selects, per specialty and by content, the sources to use and flags ambiguities; the reviewer confirms them. Length or latest date alone does not determine whether a note is a complete report.
 4. A second call generates the RHC from selected sources and relevant clinical context. At each endpoint, the API authenticates, verifies that the user is enabled, checks contracts and limits, processes in memory, and calls the provider. The key is never exposed to the browser. There is no call per specialty.
 5. Schema, reference existence, and numerical consistency are validated; these checks do not certify semantic fidelity. The interface displays the draft and alerts; identifying data is added in the browser. Human review remains necessary.
-6. Editing, review confirmation, and downloads run in the tab. Documents and drafts are not saved in PostgreSQL, localStorage, sessionStorage, IndexedDB, or a service worker.
+6. Editing, review confirmation, and downloads run in the tab. On review confirmation the pseudonymous draft, corrected text and ratings are sent to PostgreSQL (ADR-0003); nothing clinical is kept in localStorage, sessionStorage, IndexedDB, or a service worker.
 7. Edit and error events use separate contracts accepting only predefined metadata; they do not receive the full clinical object or free-text fields.
 
 Separating administrative data reduces the data sent but does not automatically anonymize clinical text. Incidental identifiers and unnecessary content must be removed, without promising infallible anonymization. The AI provider will still process clinical content on the application's behalf.
@@ -49,7 +49,7 @@ Analysis and generation run as separate requests. The browser coordinates the si
 
 Standard users and the administrator share the clinical workflow. The administrator's only additional capabilities are creating and disabling users. The UI does not expose other identity-provider capabilities. The first administrator is provisioned outside public signup, through a documented deployment procedure. Protect the last administrator from accidental disabling and verify active status on every sensitive request.
 
-Proposed permitted entities: user profile (role and status), user audit records, technical events, edit events, categorized feedback, and evaluation version. The identity provider manages credentials and sessions. None of these tables receives patient fields or clinical text. The developer must specify the schema and authorization policies before running migrations. The master document specifies configurable initial limits, simple section editing, and clinical-session expiration.
+Proposed permitted entities: user profile (role and status), user audit records, technical events, edit events, categorized feedback, pseudonymous RHC cases (draft, corrected text, ratings, versions), and evaluation version. The identity provider manages credentials and sessions. None of these tables receives patient identifiers, header fields, notes or file names. The developer must specify the schema and authorization policies before running migrations. The master document specifies configurable initial limits, simple section editing, and clinical-session expiration.
 
 Prompts and schemas are versioned in the repository. Events record that version and the model identifier used. Reviewing metrics supports proposed changes and fixture-based verification; each edit does not automatically retrain the model or modify the prompt.
 
@@ -65,7 +65,7 @@ No AI gateway is added by default: it would introduce another service whose rete
 
 Reuse the supplied TXT files and screenshots to develop normalized fixtures and authorized local tests. Version only synthetic variants. Create synthetic PDFs for integration tests without treating them as evidence of Medexis compatibility. Maintain parser tests on representative real native PDFs in a restricted environment, outside public CI and without retained clinical artifacts.
 
-Select the model and adjust limits after measuring fidelity, specialty coverage, corrections, latency, and cost per case. Evaluate the parser, classification, temporal selection, and generation separately. Successful synthesis from a TXT file does not prove the parser works.
+Select the model and adjust limits after measuring fidelity, specialty coverage, corrections, latency, and cost per case. Evaluate the parser, source selection, and generation separately. Successful synthesis from a TXT file does not prove the parser works.
 
 This recommendation does not validate the service budget. Measure input/output tokens and retries across both stages, project 800 monthly cases, and add hosting, identity, and database costs. Earlier cost examples assuming a single call per case are not a budget for this architecture. The Sienes pilot will measure quality and actual usage without capturing clinical histories in telemetry.
 

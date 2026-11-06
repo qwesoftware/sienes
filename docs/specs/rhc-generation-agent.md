@@ -3,49 +3,52 @@
 Status: draft · Updated: 2026-11-06
 
 ## Problem
-Sienes staff write each RHC by hand from a long Medexis history. The app must produce a faithful draft with references and alerts, never inventing clinical facts, and the wording and portal rules per insurer and request type will keep changing after the pilot. One large prompt would be hard to maintain and audit.
+Sienes staff write each PAMI renewal by hand: they read about two months of Medexis history, find the latest meaningful entry per specialty, and type the "Indicaciones" text plus the diagnosis and prestación fields into the portal. Notes are often mislabeled, so the content, not the type or author label, says what a note is. The app must produce a faithful draft with references, never inventing, and its rules must be easy to change after the pilot.
 
 ## Solution
-Two agent runs per case, both on the Vercel AI SDK agent loop. **Classify** labels every note up to the cutoff with its kind (report, progress note, administrative note), specialty, date and ambiguity flags; the app then applies the selection rule and the user confirms the sources. **Generate** writes the RHC sections, portal fields, references and alerts from the confirmed sources, with a system prompt assembled from prompt modules chosen by the app. Its one tool, `check_references`, verifies every citation against the sources it was given. Both outputs are Zod-validated; the app re-validates references and numeric consistency before showing the draft.
+Two agent runs per case on the Vercel AI SDK agent loop. **Select** reads every note in the export and returns, per specialty, the entry that best describes current status plus supporting notes for diagnosis, history and medication, with ambiguity flags; the reviewer confirms or adjusts the list. **Generate** writes the PAMI-format output from the confirmed sources: Indicaciones text by area, documented CIE-10 diagnosis, documented prestación (practice, module, quantity), and alerts; member data comes from the header in the browser. Its one tool, `check_references`, verifies every citation against the sources it was given; the app re-validates references and numbers after the call. The output is one downloadable document and the same content copyable field by field.
 
 ## Decisions
 - Vercel AI SDK `ToolLoopAgent` with provider instances, SDK retries off, `abortSignal` cancellation, no bare-string model ids (ADR-0001).
-- Two separate runs with human review between them; no call per specialty and no chunking of the history (master doc, Implementation details).
-- Sources are selected by app code, not by the model: latest report per specialty plus the latest later progress note, up to the cutoff; administrative notes never count. The selected sources go in the prompt.
-- Prompt modules: `core` + `request/<admission|renewal>` + `insurer/<pami|osde|swiss-medical|union-personal|ostvla>`; specialty modules only when examples show different wording. Module versions are recorded in telemetry with the model id.
-- Only tool in v1: `check_references`, in-process and read-only. Validation also runs in app code after the call, so a model that skips the tool still cannot ship a dangling reference.
-- Contracts: `Note`, `ClassifyResult`, `RhcDraft` and telemetry schemas are shared by parser, UI and server; the AI-bound payload excludes administrative identity.
-- Provider: OpenAI first (`gpt-6-luna` candidate) through `@ai-sdk/openai`; `@ai-sdk/anthropic` as the second instance for evaluation. Retention flags pass through `providerOptions` and are verified on the wire before real data (ADR-0002).
+- The model selects the sources by content; type and author-specialty labels are hints only, and every override of a label is flagged to the reviewer.
+- Everything exported is used; there is no cutoff date and no date window. The app shows the export's date range so the reviewer can see what was included.
+- Renewals only, PAMI format for every insurer. Inputs are the PDF and the insurer.
+- Image-only pages are ignored without an alert; a PDF with no text layer is rejected with instructions to export again.
+- Prompt modules: `core` + `insurer/<name>`; PAMI is the general module. Module versions are recorded with the model id.
+- Only tool in v1: `check_references`, in-process and read-only. No critic pass; the app-side validation and the reviewer are the checks.
+- Feedback: draft, corrected text and ratings stored pseudonymously (ADR-0003); no case history, no resume.
+- Provider: OpenAI first (`gpt-6-luna` candidate) through `@ai-sdk/openai`; `@ai-sdk/anthropic` as the second instance for evaluation. Retention flags verified on the wire before real data (ADR-0002).
 
 ## Rejected
-- `get_notes` / `get_rules` tools: the app already holds every note and composes the modules; model-driven fetching adds nondeterminism for no gain.
-- Platform Agent Skills (OpenAI, Anthropic): require hosted containers, which the non-persistence rule forbids.
-- OpenAI Agents SDK: OpenAI-first, tracing exported by default; see ADR-0001.
+- App-side deterministic selection by labels and dates: labels are unreliable; the content decides.
+- `get_notes` / `get_rules` tools: the app already holds every note and composes the modules.
+- Critic pass (third run re-reading the draft): deferred until pilot data shows a need.
+- Platform Agent Skills and the OpenAI Agents SDK: see ADR-0001.
 
 ## Diagram
 ```mermaid
 flowchart LR
-  B["Browser: notes in tab memory"] --> C["POST classify (notes up to cutoff)"]
-  C --> CA["Classify agent"] --> CR["ClassifyResult"]
-  CR --> S["App selection rule"] --> U["User confirms sources"]
-  U --> G["POST generate (sources, context)"]
-  G --> M["Module selector: core, request type, insurer"] --> GA["Generate agent + check_references"]
-  GA --> D["RhcDraft"] --> V["App validation: references, numbers"] --> B
+  B["Browser: header and notes in tab memory"] --> S["POST select (all notes)"]
+  S --> SA["Select agent"] --> SR["Sources per specialty, flags"]
+  SR --> U["Reviewer confirms sources"]
+  U --> G["POST generate (sources, insurer)"]
+  G --> M["Modules: core, insurer"] --> GA["Generate agent + check_references"]
+  GA --> D["Draft: Indicaciones, diagnosis, prestación, alerts"] --> V["App validation"] --> B
+  B -. "pseudonymous draft, corrections, ratings" .-> DB["Neon"]
 ```
 
 ## Slices
-1. [ ] Contracts and one synthetic case fixture (header, reports, progress notes, administrative notes). Verify: Vitest parses the fixture with the schemas and rejects a draft whose reference points at no source.
-2. [ ] Classify run end to end with the AI SDK mock model, from route handler to a screen listing notes by kind and specialty. Verify: Playwright on the fixture shows the labels; a unit test asserts report vs progress note labels from the mock output.
-3. [ ] Selection rule and sources screen for admission and renewal, with ambiguity alerts. Verify: unit tests for undated note, administrative note not used as baseline, later note contradicting a report, inclusive cutoff.
-4. [ ] Generate run with mock model, prompt modules and `check_references`; draft with references and alerts shown in the UI. Verify: test that each (request type, insurer) pair selects the expected modules and records their versions; a dangling reference becomes an alert, never a silent draft.
-5. [ ] Real provider in the development environment on the synthetic fixture: 120 s timeout per attempt, one browser-driven retry, cancellation, telemetry with model and module versions. Verify: integration test; a cancelled attempt's late response is discarded.
+1. [ ] Contracts and one synthetic case fixture (header, mislabeled notes across three specialties, an image-only page). Verify: Vitest parses the fixture with the schemas and rejects a draft whose reference points at no source.
+2. [ ] Select run end to end with the AI SDK mock model, from route handler to a screen listing proposed sources per specialty with flags, editable by the reviewer. Verify: Playwright on the fixture; a unit test asserts a label override is flagged.
+3. [ ] Generate run with mock model, prompt modules and `check_references`; draft shown by section with references, diagnosis and prestación fields, copy buttons, Word download. Verify: test that the insurer selects the expected modules and records their versions; a dangling reference becomes an alert, never a silent draft.
+4. [ ] Pseudonymous feedback: ratings per section and field, draft and corrected text saved under a random case id on review confirmation. Verify: integration test that the stored row contains no header field and no file name.
+5. [ ] Real provider in the development environment on the synthetic fixture: 120 s timeout per attempt, one browser-driven retry, cancellation, telemetry with model and module versions. Verify: a cancelled attempt's late response is discarded.
 6. [ ] Evaluation on local real exports in the authorized environment: fidelity, specialty coverage, corrections, latency, cost; model chosen. Verify: rubric completed for the available cases; CI contains no clinical content.
 
 ## Out of scope
-- OCR, external tools, sessions or memory, OME issuance, portal automation.
-- Per-specialty prompt modules until an example shows the need.
+- Admissions, treatment plans, OCR or vision on scanned pages, external tools, sessions or memory, OME issuance, portal automation, insurer-specific forms.
 
 ## Open questions
-- Insurer modules for OSDE, Swiss Medical, Unión Personal and OSTVLA: forms pending; assumption is the common structure with PAMI's verified fields only.
-- Histories above the token budget: assumption is rejection with a message asking for a shorter export, per the master doc; a chunking strategy would need its own evaluation.
-- Production model and retention compliance: pending the evaluation in slice 6 and the account checks in ADR-0002.
+- Histories above the token budget: assumption is rejection with a message asking for a smaller export.
+- Production model and retention compliance: pending the evaluation in slice 6 and the checks in ADR-0002 and ADR-0003.
+- Sienes written confirmation of pseudonymous text storage before real data (ADR-0003).
