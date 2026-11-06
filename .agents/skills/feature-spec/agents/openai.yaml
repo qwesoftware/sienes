@@ -1,0 +1,5 @@
+interface:
+  display_name: "Feature Spec"
+  short_description: "Turn an agreed design into a one-page spec"
+policy:
+  allow_implicit_invocation: false

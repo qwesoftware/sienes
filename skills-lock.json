@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "skills": {
+    "architecture-map": {
+      "source": "ivandda/skills",
+      "sourceType": "github",
+      "skillPath": "skills/architecture-map/SKILL.md",
+      "computedHash": "fe3f014d54636b5cfa3c31b704e1e2774e0af5de09dfd17d14d91f6cc0227473"
+    },
+    "codebase-design": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/codebase-design/SKILL.md",
+      "computedHash": "aa11a96c08451f4ff86052d5da94004a8c97bb4ea41b2ac8a4300c189f66c89c"
+    },
+    "compare-options": {
+      "source": "ivandda/skills",
+      "sourceType": "github",
+      "skillPath": "skills/compare-options/SKILL.md",
+      "computedHash": "83787cb270cec9fa9ff686b98e83f43f2485f1ba29ee8f012e596bdd4b5b79a6"
+    },
+    "differential-review": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/differential-review/skills/differential-review/SKILL.md",
+      "computedHash": "3c330b7d8e2a7a6bba9ff9c7f9971d3b6c17fef84b9382efdd325abdd481371c"
+    },
+    "domain-modeling": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/domain-modeling/SKILL.md",
+      "computedHash": "b3eb40152b81f0c98fd2095a023c019452dbdce56f7540cc67fece2972db8369"
+    },
+    "feature-spec": {
+      "source": "ivandda/skills",
+      "sourceType": "github",
+      "skillPath": "skills/feature-spec/SKILL.md",
+      "computedHash": "bbc7af2ce522d4dfd3e13cc5b2e8cfdfdbd23e8a31e4bf73730734ba66994303"
+    },
+    "grilling": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/grilling/SKILL.md",
+      "computedHash": "e40cc1d348f6d935e28f1e24474302d7368f0a400429271a43b35fe154891dc5"
+    },
+    "improve-codebase-architecture": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
+      "computedHash": "f768cb44209e0d30e3449b8f95ea3dc8293093f73cfe02127d530db43412cf76"
+    },
+    "pre-commit-stack": {
+      "source": "ivandda/skills",
+      "sourceType": "github",
+      "skillPath": "skills/pre-commit-stack/SKILL.md",
+      "computedHash": "0c5c73a3f6c0ec8cd8d55d042f7281f2f73b8d2d59996cdc9d160baf314e491d"
+    },
+    "writing-for-agents": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/writing-for-agents/SKILL.md",
+      "computedHash": "95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+    }
+  }
+}

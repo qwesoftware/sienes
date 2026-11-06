@@ -1,0 +1,3 @@
+interface:
+  display_name: "Architecture Map"
+  short_description: "Explain a codebase concepts-first, keep docs/ARCHITECTURE.md current"

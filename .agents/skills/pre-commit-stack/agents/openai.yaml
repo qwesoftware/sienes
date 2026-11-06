@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pre-commit Stack"
+  short_description: "Set up, audit, or extend a repo's pre-commit hooks"
+  default_prompt: "Use $pre-commit-stack to audit this repository's pre-commit setup, or create one if it is missing."

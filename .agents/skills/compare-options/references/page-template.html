@@ -1,0 +1,100 @@
+<!doctype html>
+<!-- Template for compare-options. Replace every {{…}}; repeat the option card and table rows as needed; delete empty sections. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{Decision, 2–4 words}}</title>
+<style>
+  :root { --bg:#fbfbf9; --fg:#1d1d1b; --muted:#66655f; --line:#e3e2dc; --card:#ffffff; --good:#1f7a4d; --ok:#9a6b00; --poor:#b3261e; --accent:#2f5bd3; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161615; --fg:#ecebe6; --muted:#a3a29b; --line:#33322f; --card:#1f1f1d; --good:#5cc28d; --ok:#e0b343; --poor:#f2817a; --accent:#8aa8ff; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.7rem; margin: 0 0 4px; } h2 { font-size: 1.2rem; margin: 40px 0 12px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  h3 { margin: 0 0 6px; font-size: 1.05rem; } .muted { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; } th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; } .scroll { overflow-x: auto; }
+  .options { display: grid; gap: 16px; } /* one option per row so diagrams stay readable */
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .card.rec { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .tag { display: inline-block; font-size: .75rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--accent); color: var(--accent); }
+  .good { color: var(--good); } .ok { color: var(--ok); } .poor { color: var(--poor); }
+  ul { padding-left: 20px; margin: 6px 0; } dt { font-weight: 600; margin-top: 10px; } dd { margin: 2px 0 0; color: var(--muted); }
+  .mermaid { margin: 12px 0; text-align: center; } .mermaid svg { max-width: 100%; height: auto; }
+  a { color: var(--accent); }
+  .summary p { font-size: 1.05rem; max-width: 72ch; }
+  details { margin: 16px 0 0; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; background: var(--card); }
+  summary { cursor: pointer; font-weight: 600; } code { font-size: .88em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>{{Decision as a question}}</h1>
+  <p class="muted">{{Project}} · {{YYYY-MM-DD}}</p>
+
+  <section class="summary">
+    <h2>In short</h2>
+    <p>{{The problem in plain words and why it matters. Concepts are fine, class and file names are not.}}</p>
+    <p>{{The possible directions, one sentence each.}}</p>
+    <p><strong>Recommended:</strong> {{option, in one sentence: why.}}</p>
+  </section>
+
+  <details>
+    <summary>Show the code evidence ({{N}} places)</summary>
+    <div class="scroll"><table>
+      <tr><th>Where</th><th>What it does</th><th>Why it matters</th></tr>
+      <tr><td><code>{{path:line}}</code></td><td>{{behaviour}}</td><td>{{problem}}</td></tr>
+    </table></div>
+  </details>
+
+  <h2>Constraints</h2>
+  <div class="scroll"><table>
+    <tr><th>Constraint</th><th>Value here</th><th>Source</th></tr>
+    <tr><td>{{e.g. Peak load}}</td><td>{{value}}</td><td>{{code path, doc, or "assumed"}}</td></tr>
+  </table></div>
+
+  <h2>Options</h2>
+  <div class="options">
+    <section class="card rec">
+      <span class="tag">Recommended</span>
+      <h3>{{A. Option name}}</h3>
+      <p><strong>The idea:</strong> {{one plain sentence, no code names.}}</p>
+      <p><strong>How it would work here:</strong> {{2–3 sentences with the specifics.}}</p>
+      <pre class="mermaid">
+flowchart LR
+  A["{{node}}"] --> B["{{node}}"]
+      </pre>
+      <strong>Pros</strong><ul><li>{{pro}}</li></ul>
+      <strong>Cons</strong><ul><li>{{con}}</li></ul>
+      <p><strong>Effort:</strong> {{e.g. 2 days}} · <strong>Reversibility:</strong> {{easy / hard, why}}</p>
+    </section>
+    <!-- repeat <section class="card"> for options B and C (without the tag) -->
+  </div>
+
+  <h2>Comparison</h2>
+  <div class="scroll"><table>
+    <tr><th>Constraint</th><th>{{A}}</th><th>{{B}}</th><th>{{C}}</th></tr>
+    <tr><td>{{constraint}}</td><td class="good">good: {{few words}}</td><td class="ok">ok: {{few words}}</td><td class="poor">poor: {{few words}}</td></tr>
+  </table></div>
+
+  <h2>What these are</h2>
+  <dl>
+    <dt>{{Technology or pattern}}</dt><dd>{{What it is and what it's typically used for, 1–2 sentences.}}</dd>
+  </dl>
+
+  <h2>Recommendation</h2>
+  <p>{{Option, why it wins on the constraints above.}}</p>
+  <p class="muted">{{What would change the answer.}}</p>
+  <p class="muted"><strong>Also considered:</strong> {{option, why it isn't an option yet}}</p>
+
+  <h2>Sources</h2>
+  <ul><li><a href="{{url}}">{{title}}</a>: {{what it supports}}</li></ul>
+</main>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+  const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Compare Options"
+  short_description: "Compare 2-3 options for one decision, then pick"
+policy:
+  allow_implicit_invocation: false

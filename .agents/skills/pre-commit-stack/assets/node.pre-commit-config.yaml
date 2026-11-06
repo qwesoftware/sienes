@@ -1,0 +1,49 @@
+# JS/TS baseline. Copy to .pre-commit-config.yaml, trim, then run `pre-commit autoupdate`.
+# Uses Biome for format + lint. If the repo already uses ESLint/Prettier, keep those
+# instead (see references/hooks-catalog.md) and do not add Biome.
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+default_stages: [pre-commit]
+exclude: ^(node_modules/|dist/|build/|\.next/|coverage/|.*lock\.(json|yaml)$|.*\.lock$)
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-json
+        exclude: (tsconfig.*\.json|\.vscode/.*)$ # JSONC files
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+
+  - repo: https://github.com/biomejs/pre-commit
+    rev: v2.5.15
+    hooks:
+      - id: biome-check
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.19.2
+    hooks:
+      - id: commitizen
+
+  # Uses the project's own TypeScript; requires `npm ci` (or pnpm/bun equivalent) first.
+  - repo: local
+    hooks:
+      - id: typecheck
+        name: tsc --noEmit
+        entry: npx tsc --noEmit
+        language: system
+        pass_filenames: false
+        types_or: [ts, tsx]
+        stages: [pre-push]
