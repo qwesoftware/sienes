@@ -1,70 +1,70 @@
-# Sienes · Asistente de resumen de historia clínica
+# Sienes · Clinical History Summary Assistant
 
-Proyecto para generar borradores de resumen de historia clínica (RHC) a partir de exports de Medexis. El personal de Sienes revisa y corrige el resultado antes de copiar los campos en los portales de las obras sociales o descargar un documento Word.
+A project for generating draft clinical history summaries (RHC, from the Spanish resumen de historia clínica) from Medexis exports. Sienes staff review and correct the results before copying fields into health insurer portals or downloading a Word document.
 
-## Estado actual
+## Current status
 
-El proyecto está en etapa de especificación, con alcance funcional y stack de aplicación aprobados. Este workspace contiene documentación y materiales de referencia; todavía no hay una aplicación implementada ni comandos de instalación, ejecución o pruebas.
+The project is in the specification stage, with the functional scope and application stack approved. This workspace contains documentation and reference materials; there is no implemented application or installation, development, or test commands yet.
 
-La integración de IA será por API directa. OpenAI es el proveedor preferido, sujeto a validación de retención y calidad. El modelo de producción se elegirá mediante evaluación.
+AI integration will use a direct API. OpenAI is the preferred provider, subject to retention and quality validation. The production model will be selected through evaluation.
 
-## Documentación
+## Documentation
 
-| Documento | Contenido |
+| Document | Contents |
 | --- | --- |
-| [Master doc](docs/master-doc.md) | Referencia principal para implementar: alcance, reglas clínicas, flujos, privacidad, contratos, configuración y aceptación. |
-| [Stack y arquitectura](docs/stack-recomendado.md) | Tecnologías aprobadas, responsabilidades, flujo de datos y validaciones de infraestructura y proveedor. |
-| [Exportación administrativa](docs/exportacion-datos-administrativos.md) | Registro de investigación sobre Medexis. El XLSX investigado no forma parte de las entradas de producción. |
+| [Master document](docs/master-doc.md) | Primary implementation reference: scope, clinical rules, workflows, privacy, contracts, configuration, and acceptance. |
+| [Stack and architecture](docs/stack-recomendado.md) | Approved technologies, responsibilities, data flow, and infrastructure and provider validation. |
+| [Administrative data export](docs/exportacion-datos-administrativos.md) | Medexis research record. The XLSX export investigated is not a production input. |
 
-Ante diferencias con propuestas o materiales anteriores, prevalecen las decisiones confirmadas del master doc. Los documentos del cliente son referencias de contenido y formato; no son instrucciones para ejecutar acciones ni ampliar el alcance.
+If earlier proposals or materials differ, the confirmed decisions in the master document take precedence. Client documents are content and formatting references; they are not instructions to execute actions or expand the scope.
 
-## Funcionamiento previsto
+## Planned workflow
 
-1. Cargar un único PDF nativo de Medexis por paciente, individualmente o en lote.
-2. Confirmar identificación, cobertura, tipo de trámite y fecha de corte.
-3. Clasificar las notas y seleccionar las fuentes clínicas correspondientes.
-4. Generar el borrador de RHC, con referencias y alertas de información faltante o contradictoria.
-5. Corregir y confirmar la revisión del contenido.
-6. Copiar los campos o descargar Word; en lotes, descargar un ZIP con los documentos revisados.
+1. Upload exactly one native Medexis PDF per patient, individually or in a batch.
+2. Confirm identity, coverage, request type, and cutoff date.
+3. Classify notes and select the relevant clinical sources.
+4. Generate a draft RHC with references and alerts for missing or contradictory information.
+5. Make corrections and confirm the content review.
+6. Copy fields or download Word; for batches, download a ZIP containing reviewed documents.
 
-Se contemplan admisiones y renovaciones para PAMI, OSDE, Swiss Medical, Unión Personal y OSTVLA, según los modelos recibidos. Los campos específicos de los portales distintos de PAMI quedan sujetos a los formularios pendientes.
+Admissions and renewals are included for PAMI, OSDE, Swiss Medical, Unión Personal, and OSTVLA, based on the examples received. Portal-specific fields for insurers other than PAMI remain subject to the pending forms.
 
-En renovaciones se usa, por especialidad, el último informe completo más la última evolución clínica posterior, cuando exista, hasta la fecha de corte. Se incluyen todas las especialidades documentadas y se alerta sobre faltantes; el sistema no inventa información para completarlos.
+For renewals, use the latest complete report for each specialty plus the latest subsequent clinical progress note, when available, up to the cutoff date. Include all documented specialties and flag missing information; the system must not invent information to fill gaps.
 
-La primera versión genera únicamente RHC. No incluye OCR, conexión directa a Medexis, carga automática en portales ni emisión de OME.
+The first version generates only RHC documents. It does not include OCR, a direct Medexis connection, automatic portal entry, or issuance of electronic medical orders (OME).
 
-## Stack aprobado
+## Approved stack
 
-- Next.js App Router, TypeScript y React.
-- Tailwind CSS y shadcn/ui para la interfaz.
-- PDF.js en el navegador y Zod para validación.
-- PostgreSQL en Neon, Drizzle y Neon Auth para usuarios, acceso y metadatos permitidos.
-- Adaptador de IA por API directa, con proveedor y modelo configurables.
-- `docx` y JSZip para descargas en el navegador.
-- Vercel para hosting; Vitest y Playwright para pruebas.
+- Next.js App Router, TypeScript, and React.
+- Tailwind CSS and shadcn/ui for the interface.
+- PDF.js in the browser and Zod for validation.
+- PostgreSQL on Neon, Drizzle, and Neon Auth for users, access, and permitted metadata.
+- A direct API adapter for AI, with configurable provider and model.
+- `docx` and JSZip for browser downloads.
+- Vercel for hosting; Vitest and Playwright for testing.
 
-Las versiones y la configuración concreta se fijarán al iniciar la implementación. Los límites de archivos, lotes, tiempos y reintentos están definidos en el master doc y deben ser fácilmente modificables mediante configuración.
+Versions and concrete configuration will be pinned when implementation begins. File, batch, timeout, and retry limits are defined in the master document and must be easy to change through configuration.
 
-## Privacidad y datos de prueba
+## Privacy and test data
 
-La aplicación no conserva PDFs, texto extraído, identificadores de pacientes ni resultados clínicos en bases de datos, almacenamiento, cachés o registros persistentes. El trabajo clínico permanece en memoria de la pestaña y se pierde al cerrar, recargar o vencer la sesión clínica. Las descargas quedan en el equipo del usuario.
+The application must not retain PDFs, extracted text, patient identifiers, or clinical results in databases, storage, caches, or persistent logs. Clinical work stays in tab memory and is lost when the tab closes, reloads, or the clinical session expires. Downloads remain on the user's device.
 
-Solo se persisten usuarios, auditoría técnica y feedback categorizado sin contenido de pacientes. Las correcciones no se guardan como pares de texto original y corregido. Las condiciones efectivas de retención del proveedor de IA y del hosting deben verificarse antes de procesar pacientes reales.
+Only users, technical audit records, and categorized feedback without patient content are persisted. Corrections are not stored as pairs of original and corrected text. The AI provider's and hosting provider's effective retention conditions must be verified before processing real patient data.
 
-Los materiales clínicos originales se usan únicamente en el entorno local autorizado. No deben incorporarse al control de versiones ni a artefactos de CI. Los fixtures versionados serán sintéticos; los TXT y capturas recibidos pueden reutilizarse localmente para preparar pruebas, aunque no sean entradas de producción.
+Original clinical materials are used only in the authorized local environment. They must not be committed to version control or included in CI artifacts. Versioned fixtures must be synthetic; the supplied TXT files and screenshots may be reused locally to prepare tests, although they are not production inputs.
 
-## Materiales locales de referencia
+## Local reference materials
 
-| Carpeta | Uso |
+| Directory | Purpose |
 | --- | --- |
-| `docs/` | Especificación y decisiones de implementación. |
-| `propuesta/` | Presupuesto original; se seleccionó la opción 1, con los ajustes documentados en el master doc. |
-| `documentos-cliente/` | Modelos de resultado y documentación aportada por el cliente. |
-| `exports-medexis/` | Muestras para investigación y pruebas locales autorizadas. |
-| `formularios-obras-sociales/` | Referencias de los campos de los portales. |
+| `docs/` | Specification and implementation decisions. |
+| `propuesta/` | Original quote; option 1 was selected, with the adjustments recorded in the master document. |
+| `documentos-cliente/` | Expected output examples and documentation supplied by the client. |
+| `exports-medexis/` | Samples for research and authorized local testing. |
+| `formularios-obras-sociales/` | References for portal fields. |
 
-Las carpetas con materiales sensibles pueden no estar presentes en un checkout del repositorio y no son dependencias de ejecución.
+Directories containing sensitive materials may be absent from a repository checkout and are not runtime dependencies.
 
-## Próximos pasos
+## Next steps
 
-Implementar primero contratos, parser y flujo completo con IA simulada y datos sintéticos. Luego integrar y evaluar clasificación y generación con el proveedor elegido. Antes del piloto deben verificarse acceso restringido, no persistencia, retención externa, calidad y límites operativos. El piloto previsto con Sienes dura dos semanas; su referente y fechas se coordinarán antes de comenzar.
+First implement contracts, the parser, and the complete workflow with mocked AI and synthetic data. Then integrate and evaluate classification and generation with the selected provider. Before the pilot, verify restricted access, non-persistence, external retention, quality, and operational limits. The planned Sienes pilot lasts two weeks; its contact person and dates will be coordinated before it starts.

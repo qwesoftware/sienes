@@ -1,91 +1,91 @@
-# Stack recomendado para el asistente de RHC
+# Recommended Stack for the RHC Assistant
 
-Estado: stack de aplicación aprobado por el equipo del proyecto. API directa confirmada; OpenAI preferido sujeto a validación. Modelo de producción pendiente. Fecha: 6 de noviembre de 2026. Audiencia: developer.
+Status: application stack approved by the project team. Direct API confirmed; OpenAI preferred subject to validation. Production model pending. Date: November 6, 2026. Audience: developers.
 
-## Recomendación
+## Recommendation
 
-Una aplicación Next.js con TypeScript, React, Tailwind CSS y shadcn/ui. Frontend y API en el mismo proyecto, desplegado en Vercel. PostgreSQL en Neon para usuarios, sesiones, auditoría técnica y feedback sin datos de pacientes. Drizzle para esquema y migraciones. Neon Auth con Managed Better Auth para autenticación; la aplicación limita las operaciones administrativas a alta y deshabilitación de usuarios. Debe impedir el alta pública en servidor y revocar sesiones al deshabilitar una cuenta. No basta ocultar el formulario de registro. Verificar la configuración de cierre de altas y permisos en la integración antes de cerrar su elección.
+A Next.js application with TypeScript, React, Tailwind CSS, and shadcn/ui. Frontend and API in the same project, deployed on Vercel. PostgreSQL on Neon for users, sessions, technical auditing, and feedback without patient data. Drizzle for schema and migrations. Neon Auth with Managed Better Auth for authentication; the application limits administrative operations to creating and disabling users. It must prevent public signup on the server and revoke sessions when an account is disabled. Hiding the signup form is insufficient. Verify the configuration for closed signup and permissions in the integration before finalizing this choice.
 
-La elección evita un backend Python separado para un flujo de aproximadamente 800 casos mensuales y conserva contratos de datos compartidos entre interfaz, parser y servidor. Se fijarán versiones estables compatibles y lockfile al iniciar implementación, sin depender de la etiqueta latest en producción.
+This choice avoids a separate Python backend for a workflow of approximately 800 cases per month and keeps shared data contracts across the interface, parser, and server. Compatible stable versions and a lockfile will be pinned when implementation begins, without relying on the latest tag in production.
 
-| Capa | Tecnología propuesta | Responsabilidad |
+| Layer | Proposed technology | Responsibility |
 | --- | --- | --- |
-| Aplicación y API | Next.js App Router, TypeScript, runtime Node.js | Pantallas, autenticación, autorización, generación y feedback. |
-| Interfaz | React, Tailwind CSS, shadcn/ui | Importación, revisión de fuentes, edición por secciones y administración de usuarios. |
-| Lectura PDF | PDF.js, distribuido como pdfjs-dist, en worker del navegador | Extraer texto y posiciones, reconstruir encabezados y notas, mantener referencias a páginas. |
-| Validación | Zod | Esquema de fuentes y resultado; validación obligatoria también en servidor. |
-| IA | Adaptador de proveedor con SDK oficial; OpenAI API como proveedor preferido condicionado a validación; GPT-6 Luna como primer candidato de modelo | Síntesis estructurada, sin herramientas ni búsqueda externa. El modelo concreto se elige con evaluación, no queda fijado en esta propuesta. |
-| Persistencia permitida | PostgreSQL en Neon y Drizzle | Usuarios/perfiles, eventos técnicos, feedback categorizado y versiones. Sin tablas de pacientes, documentos ni resúmenes. |
-| Autenticación | Neon Auth, integración Next.js | Identidad y sesiones, con autorización de aplicación en cada endpoint. |
-| Descargas | docx y JSZip en navegador | Word por paciente y ZIP del lote, sin guardar archivos en servidor. |
-| Pruebas | Vitest y Playwright | Parser, reglas, contratos, autorización, revisión, descarga, lotes y controles de no persistencia. |
-| Hosting | Vercel | Web y endpoints; configuración explícita de no cache y registros sin cuerpos clínicos. |
+| Application and API | Next.js App Router, TypeScript, Node.js runtime | Screens, authentication, authorization, generation, and feedback. |
+| Interface | React, Tailwind CSS, shadcn/ui | Import, source review, section editing, and user administration. |
+| PDF reading | PDF.js, distributed as pdfjs-dist, in a browser worker | Extract text and positions, reconstruct headers and notes, and maintain page references. |
+| Validation | Zod | Source and result schemas; mandatory validation on the server as well. |
+| AI | Provider adapter with the official SDK; OpenAI API as preferred provider subject to validation; GPT-6 Luna as the first model candidate | Structured synthesis, without tools or external search. The concrete model is selected through evaluation and is not fixed by this proposal. |
+| Permitted persistence | PostgreSQL on Neon and Drizzle | Users/profiles, technical events, categorized feedback, and versions. No patient, document, or summary tables. |
+| Authentication | Neon Auth, Next.js integration | Identity and sessions, with application authorization at every endpoint. |
+| Downloads | docx and JSZip in the browser | Word per patient and batch ZIP, without saving files on the server. |
+| Testing | Vitest and Playwright | Parser, rules, contracts, authorization, review, downloads, batches, and non-persistence controls. |
+| Hosting | Vercel | Web and endpoints; explicit no-cache configuration and logs without clinical bodies. |
 
-## Flujo de datos
+## Data flow
 
-1. El navegador lee el PDF local. No se sube el archivo original a almacenamiento ni al proveedor de IA.
-2. PDF.js extrae bloques y posiciones en un worker. La aplicación reconoce al paciente del encabezado y separa las notas. El usuario confirma identidad y cobertura.
-3. Se separan los campos administrativos del contenido clínico y se filtra por fecha de corte. Una primera llamada estructurada clasifica las notas y sus áreas; la aplicación aplica la selección temporal y permite revisar ambigüedades. No se usa solo longitud o última fecha para determinar un informe completo.
-4. Una segunda llamada genera el RHC desde las fuentes seleccionadas y el contexto clínico relevante. En cada endpoint la API autentica, verifica usuario habilitado, contratos y límites, procesa en memoria y llama al proveedor. La clave nunca se expone al navegador. No hay una llamada por especialidad.
-5. Se validan esquema, existencia de referencias y consistencia de cifras; estos controles no certifican fidelidad semántica. La interfaz muestra borrador y alertas; los datos identificatorios se incorporan en el navegador. La revisión humana sigue siendo necesaria.
-6. La edición, confirmación de revisión y descarga se ejecutan en la pestaña. No se guardan documentos ni borradores en PostgreSQL, localStorage, sessionStorage, IndexedDB o un service worker.
-7. Los eventos de edición y errores pasan por contratos separados que solo admiten metadatos predefinidos; no reciben el objeto clínico completo ni campos libres.
+1. The browser reads the local PDF. The original file is not uploaded to storage or the AI provider.
+2. PDF.js extracts blocks and positions in a worker. The application identifies the patient from the header and separates the notes. The user confirms identity and coverage.
+3. Administrative fields are separated from clinical content, and the cutoff date is applied. A first structured call classifies notes and their clinical areas; the application applies temporal selection and allows ambiguities to be reviewed. Length or latest date alone does not determine whether a note is a complete report.
+4. A second call generates the RHC from selected sources and relevant clinical context. At each endpoint, the API authenticates, verifies that the user is enabled, checks contracts and limits, processes in memory, and calls the provider. The key is never exposed to the browser. There is no call per specialty.
+5. Schema, reference existence, and numerical consistency are validated; these checks do not certify semantic fidelity. The interface displays the draft and alerts; identifying data is added in the browser. Human review remains necessary.
+6. Editing, review confirmation, and downloads run in the tab. Documents and drafts are not saved in PostgreSQL, localStorage, sessionStorage, IndexedDB, or a service worker.
+7. Edit and error events use separate contracts accepting only predefined metadata; they do not receive the full clinical object or free-text fields.
 
-La separación administrativa reduce los datos enviados, pero no convierte automáticamente el texto clínico en anónimo. Se deben eliminar identificadores incidentales y contenido innecesario, sin prometer anonimización infalible. El proveedor de IA seguirá siendo un encargado de procesamiento de contenido clínico.
+Separating administrative data reduces the data sent but does not automatically anonymize clinical text. Incidental identifiers and unnecessary content must be removed, without promising infallible anonymization. The AI provider will still process clinical content on the application's behalf.
 
-No se declara que PDF.js nunca ejecute en servidor en pruebas, pero la ruta de producción recomendada realiza la extracción en el navegador. El parser usa posiciones para evitar depender del orden lineal de extracción. Debe tratar documentos y texto como datos no confiables.
+This does not mean PDF.js can never run on the server in tests, but the recommended production path performs extraction in the browser. The parser uses positions to avoid depending on linear extraction order. It must treat documents and text as untrusted data.
 
-## Lotes y ausencia de persistencia
+## Batches and non-persistence
 
-La cola de casos reside en memoria de la pestaña. Cada petición procesa un paciente. La concurrencia inicial aprobada es dos casos por pestaña, configurable y sujeta a límites del proveedor y pruebas. El servidor aplica también límites por usuario y globales, porque el control del navegador se puede eludir.
+The case queue lives in tab memory. Each request processes one patient. The approved initial concurrency is two cases per tab, configurable and subject to provider limits and testing. The server also applies per-user and global limits because browser controls can be bypassed.
 
-No se emplean colas durables, almacenes de objetos, vector databases, file search ni trabajos de IA en background que retengan contenido. Cerrar o recargar pierde el trabajo. La cancelación usa AbortController y señales de cancelación, pero no promete detener instantáneamente al proveedor ni evitar costos de solicitudes ya enviadas.
+There are no durable queues, object stores, vector databases, file search, or background AI jobs that retain content. Closing or reloading loses the work. Cancellation uses AbortController and cancellation signals, without promising an immediate stop at the provider or avoiding costs for requests already sent.
 
-El tamaño del PDF local y el payload enviado al servidor son límites distintos. Vercel documenta un máximo de 4,5 MB para cuerpos de petición/respuesta de Functions. Se fijará un máximo menor para el payload estructurado y límites de tokens; no se enviará el lote completo en una sola petición. Documentos excesivos se rechazan con un mensaje claro, sin recortar la historia silenciosamente. La extracción local evita subir el binario, pero no elimina la necesidad de limitar texto y duración.
+Local PDF size and the payload sent to the server are separate limits. Vercel documents a 4.5 MB maximum for Functions request/response bodies. A lower maximum will be set for the structured payload, together with token limits; the entire batch will not be sent in one request. Oversized documents are rejected with a clear message, without silently trimming the history. Local extraction avoids uploading the binary but does not remove the need to limit text and duration.
 
-Análisis y generación se ejecutan como peticiones separadas. El navegador coordina el único reintento temporal permitido por llamada, con los reintentos automáticos del SDK desactivados. Los 120 segundos son por intento de cada etapa; el caso completo puede durar más. La respuesta debe coincidir con el intento y revisión vigentes del caso para poder aplicarse. El master doc define los estados y su invalidación tras ediciones, cancelación o vencimiento.
+Analysis and generation run as separate requests. The browser coordinates the single permitted transient-error retry per call, with SDK automatic retries disabled. The 120 seconds apply per attempt at each stage; the complete case may take longer. A response must match the case's current attempt and revision before it can be applied. The master document defines states and their invalidation after edits, cancellation, or expiration.
 
-## Autorización y persistencia
+## Authorization and persistence
 
-Usuario estándar y administrador comparten el flujo clínico. El administrador solo tiene adicionalmente alta y baja de usuarios. La UI no expone otras capacidades del proveedor de identidad. El primer administrador se provisiona fuera del alta pública, con un procedimiento de despliegue documentado. Proteger al último administrador contra deshabilitación accidental y verificar estado activo en cada solicitud sensible.
+Standard users and the administrator share the clinical workflow. The administrator's only additional capabilities are creating and disabling users. The UI does not expose other identity-provider capabilities. The first administrator is provisioned outside public signup, through a documented deployment procedure. Protect the last administrator from accidental disabling and verify active status on every sensitive request.
 
-Entidades permitidas propuestas: perfil de usuario (rol y estado), auditoría de usuarios, eventos técnicos, eventos de edición, feedback categorizado y versión de evaluación. Las credenciales y sesiones las administra el proveedor de identidad. Ninguna de estas tablas recibe campos de paciente ni texto clínico. El developer debe concretar el esquema y las políticas de autorización antes de migrar. El master doc especifica límites iniciales configurables, edición simple por secciones y vencimiento de la sesión clínica.
+Proposed permitted entities: user profile (role and status), user audit records, technical events, edit events, categorized feedback, and evaluation version. The identity provider manages credentials and sessions. None of these tables receives patient fields or clinical text. The developer must specify the schema and authorization policies before running migrations. The master document specifies configurable initial limits, simple section editing, and clinical-session expiration.
 
-Los prompts y esquemas se versionan en el repositorio. Los eventos guardan esa versión y el identificador de modelo empleado. La revisión de métricas permite proponer cambios y comprobarlos con fixtures; no se reentrena ni se modifica el prompt automáticamente con cada edición.
+Prompts and schemas are versioned in the repository. Events record that version and the model identifier used. Reviewing metrics supports proposed changes and fixture-based verification; each edit does not automatically retrain the model or modify the prompt.
 
-## Retención del proveedor de IA
+## AI provider retention
 
-Se confirma API directa, sin Managed Agents. OpenAI es el proveedor preferido para la generación mediante una API sin estado y salida estructurada. GPT-6 Luna (gpt-6-luna) es el primer modelo a evaluar, sin dar por aprobada su calidad ni fijarlo aún para producción. No se aprueba todavía su uso con pacientes reales. Debe verificarse el modelo, endpoint y configuración concretos frente al requisito de retención del proyecto.
+A direct API is confirmed, without Managed Agents. OpenAI is the preferred provider for generation through a stateless API with structured output. GPT-6 Luna (gpt-6-luna) is the first model to evaluate; its quality is not yet approved and it is not fixed for production. Use with real patient data is not yet approved. The concrete model, endpoint, and configuration must be checked against the project's retention requirement.
 
-La documentación de OpenAI distingue almacenamiento de respuestas, registros de abuso y caché. store:false por sí solo no garantiza retención cero. Los controles Zero Data Retention requieren elegibilidad/aprobación y tienen excepciones por capacidades. Esta condición debe resolverse con la cuenta y el contrato efectivos antes de producción. Si no se consigue una configuración compatible, se debe evaluar otro proveedor o acordar explícitamente una política diferente; el diseño no puede prometer retención cero solo por no escribir en PostgreSQL.
+OpenAI documentation distinguishes response storage, abuse-monitoring logs, and caching. store:false alone does not guarantee zero retention. Zero Data Retention controls require eligibility/approval and have capability-specific exceptions. This must be resolved using the actual account and contract before production. If a compatible configuration cannot be obtained, another provider must be evaluated or a different policy explicitly agreed; the design cannot promise zero retention merely because it does not write to PostgreSQL.
 
-No se agrega un gateway de IA por defecto: introduciría otro servicio cuyas condiciones de retención habría que verificar. El adaptador de proveedor permite cambiar de API sin modificar la interfaz y el contrato del RHC.
+No AI gateway is added by default: it would introduce another service whose retention conditions would need verification. The provider adapter allows changing APIs without changing the interface or RHC contract.
 
-## Validación y costos
+## Validation and costs
 
-Reutilizar los TXT y capturas recibidos para desarrollar fixtures normalizados y pruebas locales autorizadas. Versionar únicamente variantes sintéticas. Crear PDFs sintéticos para pruebas de integración sin confundirlos con evidencia de compatibilidad con Medexis. Mantener al menos pruebas de parser sobre PDFs nativos reales representativos en un entorno restringido, fuera de CI pública y sin artefactos clínicos retenidos.
+Reuse the supplied TXT files and screenshots to develop normalized fixtures and authorized local tests. Version only synthetic variants. Create synthetic PDFs for integration tests without treating them as evidence of Medexis compatibility. Maintain parser tests on representative real native PDFs in a restricted environment, outside public CI and without retained clinical artifacts.
 
-Seleccionar modelo y ajustar límites después de medir fidelidad, cobertura de áreas, correcciones, latencia y costo por caso. Evaluar por separado parser, clasificación, selección temporal y generación. No dar por probado el parser porque la síntesis funciona sobre un TXT.
+Select the model and adjust limits after measuring fidelity, specialty coverage, corrections, latency, and cost per case. Evaluate the parser, classification, temporal selection, and generation separately. Successful synthesis from a TXT file does not prove the parser works.
 
-El presupuesto de servicios no se considera validado por esta recomendación. Medir tokens de entrada/salida y reintentos en ambas etapas, proyectar 800 casos mensuales y sumar hosting, identidad y base. Los ejemplos económicos previos de una sola llamada por caso no constituyen un presupuesto de esta arquitectura. El período de prueba con Sienes medirá calidad y uso real, sin capturar historias clínicas en telemetría.
+This recommendation does not validate the service budget. Measure input/output tokens and retries across both stages, project 800 monthly cases, and add hosting, identity, and database costs. Earlier cost examples assuming a single call per case are not a budget for this architecture. The Sienes pilot will measure quality and actual usage without capturing clinical histories in telemetry.
 
-## Fuentes técnicas verificadas
+## Verified technical sources
 
 - Next.js Route Handlers: https://nextjs.org/docs/app/getting-started/route-handlers
-- PDF.js API y extracción de texto: https://mozilla.github.io/pdf.js/api/draft/api.js.html
+- PDF.js API and text extraction: https://mozilla.github.io/pdf.js/api/draft/api.js.html
 - Neon Auth Admin: https://neon.com/docs/auth/guides/plugins/admin
-- Vercel Functions y límites: https://vercel.com/docs/functions/limitations
-- Generación de Word con JavaScript: https://docx.js.org/
-- OpenAI y controles de datos: https://developers.openai.com/api/docs/guides/your-data
+- Vercel Functions and limits: https://vercel.com/docs/functions/limitations
+- Word generation with JavaScript: https://docx.js.org/
+- OpenAI data controls: https://developers.openai.com/api/docs/guides/your-data
 
-## Evaluación de Anthropic Managed Agents
+## Anthropic Managed Agents evaluation
 
-Se evaluó a pedido del equipo después de aprobar el stack de aplicación. La recomendación es no utilizar Managed Agents para el RHC bajo la política actual de no persistencia clínica. El servicio está orientado a tareas autónomas prolongadas, con sesiones y herramientas administradas. La documentación indica que el historial persiste hasta eliminar la sesión y que Managed Agents no es elegible para Zero Data Retention, incluso con sandbox propio. Borrar al terminar no equivale a no persistir.
+Evaluated at the team's request after application-stack approval. The recommendation is not to use Managed Agents for RHC under the current clinical non-persistence policy. The service targets extended autonomous tasks with managed sessions and tools. Its documentation states that history persists until the session is deleted and that Managed Agents is not eligible for Zero Data Retention, even with a self-hosted sandbox. Deleting at the end is not equivalent to avoiding persistence.
 
-El flujo del RHC requiere selección controlada de fuentes, síntesis estructurada y revisión humana; no requiere un agente que ejecute comandos, navegue o mantenga sesiones durables. Claude mediante Messages API sí es un candidato para el adaptador directo de IA. Deben comprobarse condiciones efectivas de retención de la cuenta, modelo y funciones seleccionadas; la elegibilidad del endpoint no garantiza retención cero para cualquier modelo o configuración. No se ha seleccionado aún Anthropic ni un modelo concreto.
+The RHC workflow needs controlled source selection, structured synthesis, and human review; it does not require an agent that executes commands, browses, or maintains durable sessions. Claude through the Messages API is a candidate for the direct AI adapter. The effective retention conditions of the selected account, model, and features must be checked; endpoint eligibility does not guarantee zero retention for every model or configuration. Neither Anthropic nor a specific Anthropic model has been selected.
 
-Fuentes verificadas: https://platform.claude.com/docs/en/managed-agents/overview , https://platform.claude.com/docs/en/managed-agents/secure-deployment-monitoring y https://platform.claude.com/docs/en/manage-claude/api-and-data-retention .
+Verified sources: https://platform.claude.com/docs/en/managed-agents/overview , https://platform.claude.com/docs/en/managed-agents/secure-deployment-monitoring and https://platform.claude.com/docs/en/manage-claude/api-and-data-retention .
 
-## Decisiones operativas aprobadas
+## Approved operational decisions
 
-Solo un PDF nativo de Medexis por paciente. Límites iniciales configurables: 10 MB, 300 páginas por PDF, 20 pacientes por lote y 2 casos simultáneos por pestaña. Timeout de 120 segundos por intento de cada etapa y un reintento temporal adicional por llamada. Ningún fallback automático de modelo. Sesión clínica de 30 minutos de inactividad con aviso previo. Los detalles y criterios de revisión, facilidad de uso, telemetría y piloto de dos semanas están definidos en master-doc.md y son la referencia de implementación.
+Only one native Medexis PDF per patient. Configurable initial limits: 10 MB, 300 pages per PDF, 20 patients per batch, and 2 concurrent cases per tab. A 120-second timeout per attempt at each stage and one additional transient-error retry per call. No automatic model fallback. A clinical session with a 30-minute inactivity timeout and advance warning. Details and criteria for review, ease of use, telemetry, and the two-week pilot are defined in master-doc.md, which is the implementation reference.

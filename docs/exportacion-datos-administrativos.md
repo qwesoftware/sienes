@@ -1,56 +1,60 @@
-# Exportación de datos administrativos de Medexis
+# Medexis Administrative Data Export
 
-Verificado el 6 de noviembre de 2026 mediante el perfil autorizado para la revisión. Esta nota documenta la ruta y el esquema sin copiar datos de pacientes. Es un registro de investigación: la única entrada de producción aprobada es un PDF nativo de Medexis por paciente, según el master doc. No se implementa un lector XLSX.
+Verified on November 6, 2026 using the account authorized for the review. This note records the navigation path and schema without copying patient data. It is a research record: the only approved production input is one native Medexis PDF per patient, as specified in the master document. No XLSX reader will be implemented.
 
-## Procedimiento comprobado
+## Verified procedure
 
-1. Desde el inicio de Medexis, abrir el módulo con el icono de barras: Estadísticas - Reportes.
-2. En la pestaña REPORTES, elegir el módulo Pacientes.
-3. En Concepto, elegir LISTADO PACIENTES.
-4. Seleccionar Solo en Cobertura y elegir la cobertura deseada. También existe Todas, que no fue la opción usada para la prueba.
-5. Pulsar Procesar y esperar la descarga. La aplicación muestra Consulta finalizada exitosamente y Archivo generado exitosamente.
+Medexis interface labels are preserved in Spanish so the steps match the actual application.
 
-La prueba filtrada por PAMI descargó un archivo XLSX denominado ListadoPacientes, con una hoja Listado pacientes. Se inspeccionó el archivo real, no solamente el mensaje de éxito. La fila 4 indica la cobertura seleccionada y la fila 5 contiene los encabezados.
+1. From the Medexis home screen, open the module with the bar chart icon: Estadísticas - Reportes.
+2. In the REPORTES tab, select the Pacientes module.
+3. Under Concepto, select LISTADO PACIENTES.
+4. Select Solo under Cobertura and choose the desired insurer. Todas is also available but was not used for this test.
+5. Click Procesar and wait for the download. The application displays Consulta finalizada exitosamente and Archivo generado exitosamente.
 
-## Columnas observadas
+The test filtered by PAMI downloaded an XLSX file named ListadoPacientes, with a worksheet named Listado pacientes. The actual file was inspected, rather than relying solely on the success message. Row 4 identifies the selected coverage and row 5 contains the headers.
 
-| Columna | Encabezado |
-| --- | --- |
-| A | Tipo documento |
-| B | Documento |
-| C | Número historia clínica |
-| D | Apellido |
-| E | Nombre |
-| F | Sexo |
-| G | Fecha nacimiento |
-| H | Domicilio |
-| I | Localidad |
-| J | Celular |
-| K | Teléfono fijo |
-| L | Email |
-| M | Cobertura |
-| N | Plan |
-| O | Numero de afiliado |
-| P | Tipo IVA |
-| Q | Fecha carga |
-| R | Usuario carga |
+## Observed columns
 
-Se comprobó que los dos casos PAMI de referencia están presentes con documento, HC, nombre, nacimiento, cobertura y afiliación. El número de afiliado se almacena como texto en esas filas. No todas las filas del listado tienen afiliación completa: deberán conservarse las alertas de información faltante.
+Original headers are preserved below, with English meanings for reference.
 
-## Aplicación al proyecto
+| Column | Original header | Meaning |
+| --- | --- | --- |
+| A | Tipo documento | Document type |
+| B | Documento | Document number |
+| C | Número historia clínica | Medical record number |
+| D | Apellido | Last name |
+| E | Nombre | First name |
+| F | Sexo | Sex |
+| G | Fecha nacimiento | Date of birth |
+| H | Domicilio | Address |
+| I | Localidad | City/locality |
+| J | Celular | Mobile phone |
+| K | Teléfono fijo | Landline |
+| L | Email | Email |
+| M | Cobertura | Insurer/coverage |
+| N | Plan | Plan |
+| O | Numero de afiliado | Member number |
+| P | Tipo IVA | VAT category |
+| Q | Fecha carga | Entry date |
+| R | Usuario carga | User who entered the record |
 
-Tras validar el PDF nativo aportado por el usuario, se confirmó un PDF por paciente con encabezado administrativo y evoluciones como única entrada. La combinación de TXT clínico y XLSX administrativo fue una alternativa investigada, descartada del flujo de producción para simplificar la operación y evitar asociaciones entre archivos. El JSON clínico revisado no contiene claves de documento ni HC. Estos materiales solo se reutilizan localmente para investigación y pruebas autorizadas.
+Both PAMI reference cases were found with document number, medical record number, name, date of birth, coverage, and membership details. The member number is stored as text in those rows. Not every row in the list has complete membership details: missing-information alerts remain necessary.
 
-El listado filtrado contiene pacientes históricos y no representa automáticamente el conjunto activo a renovar. Se debe procesar únicamente la selección de casos y columnas necesarias. Los campos de domicilio, contacto, IVA y auditoría no se necesitan para los campos actualmente identificados de PAMI y no deberían enviarse a la IA.
+## Application to this project
 
-El XLSX no contiene columnas de CUD, diagnóstico CIE-10, práctica, módulo o cantidad. Estos datos deberán provenir de otras fuentes documentadas o de una selección revisada por el usuario.
+After validating the native PDF supplied by the user, one PDF per patient containing the administrative header and progress notes was confirmed as the sole input. Combining clinical TXT and administrative XLSX was investigated and excluded from the production workflow to simplify operation and avoid associations between files. The clinical JSON reviewed has no document-number or medical-record-number keys. These materials are reused only locally for authorized research and testing.
 
-El archivo y sus filas no se incorporan a la aplicación ni se convierten en un padrón persistente. La descarga local realizada para esta comprobación permanece en Descargas; no se copió el padrón al proyecto.
+The filtered list contains historical patients and does not automatically represent the active population due for renewal. Only the necessary cases and columns should be processed. Address, contact, VAT, and audit fields are not needed for the currently identified PAMI fields and should not be sent to AI.
 
-## Alternativas y límites de la revisión
+The XLSX has no columns for CUD (disability certificate), ICD-10 diagnosis, procedure, module, or quantity. These values must come from other documented sources or a selection reviewed by the user.
 
-En el mismo selector existe PACIENTES EN TRATAMIENTO, pero no se generó ni se verificó su esquema. Puede investigarse si se necesita acotar a actividad por período.
+The file and its rows are not imported into the application or turned into a persistent patient directory. The local download used for this check remains in Downloads; the directory was not copied into the project.
 
-La impresión de historia clínica dispone de la opción Unico encabezado, pero el intento de impresión de una muestra devolvió Ha ocurrido un error al imprimir la historia clínica. Ese intento no permitió validar la impresión en el navegador. Posteriormente, el usuario aportó un PDF nativo generado desde ese circuito y se confirmó que reúne encabezado administrativo y evoluciones con texto extraíble en sus 91 páginas. El PDF se confirmó como única entrada; quedan por comprobar variaciones del mismo diseño y la cobertura de adjuntos.
+## Alternatives and review limitations
 
-Solo se comprobó la descarga administrativa de PAMI. El filtro permite elegir otras coberturas, pero sus archivos y contenido deben verificarse antes de declarar compatibilidad completa.
+The same selector includes PACIENTES EN TRATAMIENTO, but that export was not generated and its schema was not verified. It can be investigated if filtering activity by period becomes necessary.
+
+The medical history print function has a Unico encabezado option, but an attempted sample print returned Ha ocurrido un error al imprimir la historia clínica. That attempt did not validate printing in the browser. The user subsequently supplied a native PDF generated through that workflow, and it was confirmed to contain an administrative header and progress notes with extractable text across its 91 pages. The PDF was confirmed as the sole input; variations of the same layout and attachment coverage remain to be checked.
+
+Only the PAMI administrative download was verified. The filter allows other insurers, but their files and contents must be checked before claiming full compatibility.
