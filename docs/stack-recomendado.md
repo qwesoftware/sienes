@@ -14,7 +14,7 @@ This choice avoids a separate Python backend for a workflow of approximately 800
 | Interface | React, Tailwind CSS, shadcn/ui | Import, source review, section editing, and user administration. |
 | PDF reading | PDF.js, distributed as pdfjs-dist, in a browser worker | Extract text and positions, reconstruct headers and notes, and maintain page references. |
 | Validation | Zod | Source and result schemas; mandatory validation on the server as well. |
-| AI | Provider adapter; SDK and agent design under evaluation (official SDK, Vercel AI SDK, or OpenAI Agents SDK); OpenAI API as preferred candidate subject to validation; GPT-6 Luna as the first model candidate | Structured synthesis. Whether to use an agent loop with in-process, read-only tools is under evaluation; no external search. The concrete model is selected through evaluation and is not fixed by this proposal. |
+| AI | Vercel AI SDK agent loop (`ToolLoopAgent`) with provider packages, proposed in [ADR-0001](adr/0001-ai-layer-agent-loop.md); OpenAI API as preferred candidate subject to validation; GPT-6 Luna as the first model candidate | Structured synthesis with in-process, read-only tools and app-selected prompt modules; no external tools, no gateway, no sessions. The concrete model is selected through evaluation and is not fixed by this proposal. |
 | Permitted persistence | PostgreSQL on Neon and Drizzle | Users/profiles, technical events, categorized feedback, and versions. No patient, document, or summary tables. |
 | Authentication | Neon Auth, Next.js integration | Identity and sessions, with application authorization at every endpoint. |
 | Downloads | docx and JSZip in the browser | Word per patient and batch ZIP, without saving files on the server. |
@@ -37,7 +37,7 @@ This does not mean PDF.js can never run on the server in tests, but the recommen
 
 ## Batches and non-persistence
 
-The case queue lives in tab memory. Each request processes one patient. The approved initial concurrency is two cases per tab, configurable and subject to provider limits and testing. The server also applies per-user and global limits because browser controls can be bypassed.
+The case queue lives in tab memory. Each request processes one patient. The recommended initial concurrency is two cases per tab, configurable and subject to provider limits and testing. The server also applies per-user and global limits because browser controls can be bypassed.
 
 There are no durable queues, object stores, vector databases, file search, or background AI jobs that retain content. Closing or reloading loses the work. Cancellation uses AbortController and cancellation signals, without promising an immediate stop at the provider or avoiding costs for requests already sent.
 
@@ -86,6 +86,6 @@ The RHC workflow needs controlled source selection, structured synthesis, and hu
 
 Verified sources: https://platform.claude.com/docs/en/managed-agents/overview , https://platform.claude.com/docs/en/managed-agents/secure-deployment-monitoring and https://platform.claude.com/docs/en/manage-claude/api-and-data-retention .
 
-## Approved operational decisions
+## Recommended operational configuration
 
 Only one native Medexis PDF per patient. Configurable initial limits: 10 MB, 300 pages per PDF, 20 patients per batch, and 2 concurrent cases per tab. A 120-second timeout per attempt at each stage and one additional transient-error retry per call. No automatic model fallback. A clinical session with a 30-minute inactivity timeout and advance warning. Details and criteria for review, ease of use, telemetry, and the two-week pilot are defined in master-doc.md, which is the implementation reference.
