@@ -19,3 +19,4 @@ The app is a single TypeScript codebase so the Zod contracts are shared by the p
 - Verify in a test Neon project, before any real data, that public sign-up is disabled while `admin.createUser` works and that `banUser` invalidates an open session on the next request.
 - Clinical payloads are capped below Vercel's 4.5 MB function body limit; function duration stays at the 300 s default.
 - Vercel logging and observability are configured to exclude request and response bodies.
+- Only the Vercel and Neon accounts of info@qwesoftware.com are used for this project, in every environment; no personal or client accounts.
