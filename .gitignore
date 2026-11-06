@@ -1,0 +1,8 @@
+.env*
+.DS_Store
+
+/documentos-cliente/
+/propuesta/
+/formularios-obras-sociales/
+/exports-medexis/
+
