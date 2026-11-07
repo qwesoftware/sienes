@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import type { GenerateRequest, GenerateResponse, SelectRequest, SelectResponse, SourceNote } from "@/contracts/ai";
 import type { Note } from "@/contracts/case";
 import type { Feedback } from "@/contracts/feedback";
-import { apiFetch } from "@/lib/client-api";
+import { apiFetch, withRetry } from "@/lib/client-api";
 import { parseMedexis, ParseError } from "@/parser/medexis";
 import { extractPagesBrowser } from "@/parser/pdf-browser";
 import type { PublicLimits } from "@/lib/limits";
@@ -186,7 +186,11 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
       dispatch({ type: "analyze-started", caseId, attemptId });
       const release = beginClinicalCall();
       try {
-        const response = await apiFetch<SelectResponse>("/api/select", { method: "POST", json: body, signal: controller.signal });
+        const response = await withRetry(
+          () => apiFetch<SelectResponse>("/api/select", { method: "POST", json: body, signal: controller.signal }),
+          limits.GENERATION_MAX_RETRIES,
+          controller.signal,
+        );
         if (response.attemptId !== attemptId) return;
         dispatch({ type: "analyzed", caseId, attemptId, selection: response.selection });
       } catch (err) {
@@ -197,7 +201,7 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
         if (controllers.current.get(caseId) === controller) controllers.current.delete(caseId);
       }
     },
-    [beginClinicalCall, dispatch],
+    [beginClinicalCall, dispatch, limits.GENERATION_MAX_RETRIES],
   );
 
   // Generate run: only the notes the confirmed selection uses travel.
@@ -219,7 +223,11 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
       dispatch({ type: "generate-started", caseId, attemptId });
       const release = beginClinicalCall();
       try {
-        const response = await apiFetch<GenerateResponse>("/api/generate", { method: "POST", json: body, signal: controller.signal });
+        const response = await withRetry(
+          () => apiFetch<GenerateResponse>("/api/generate", { method: "POST", json: body, signal: controller.signal }),
+          limits.GENERATION_MAX_RETRIES,
+          controller.signal,
+        );
         if (response.attemptId !== attemptId) return;
         dispatch({ type: "generated", caseId, attemptId, draft: response.draft, versions: response.versions });
       } catch (err) {
@@ -230,7 +238,7 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
         if (controllers.current.get(caseId) === controller) controllers.current.delete(caseId);
       }
     },
-    [beginClinicalCall, dispatch],
+    [beginClinicalCall, dispatch, limits.GENERATION_MAX_RETRIES],
   );
 
   const cancelAttempt = useCallback(

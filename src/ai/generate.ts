@@ -39,7 +39,9 @@ export function generatePrompt(selection: Selection, sources: SourceNote[]): str
 // and is removed; a quantity that no cited source states becomes an alert.
 export function validateDraft(draft: Draft, sources: SourceNote[]): Draft {
   const alerts: Alert[] = [...draft.alerts];
-  const issues = findReferenceIssues(draft, sources);
+  // A section that only states the absence of clinical content has nothing to cite.
+  const noContent = new Set(draft.alerts.filter((a) => a.code === "no-clinical-content").map((a) => a.sectionKey));
+  const issues = findReferenceIssues(draft, sources).filter((i) => !(i.reason === "missing-reference" && noContent.has(i.where)));
   for (const issue of issues) {
     const where = issue.where.startsWith("progress:") ? draft.sections.find((s) => s.key === issue.where)?.title ?? issue.where : issue.where;
     alerts.push({

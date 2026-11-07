@@ -43,6 +43,16 @@ describe("generate run", () => {
     expect(result.draft.alerts).toContainEqual(expect.objectContaining({ code: "invalid-reference", sectionKey: "reason", noteId: "ghost" }));
   });
 
+  it("does not demand a reference for a section that only reports the absence of clinical content", () => {
+    const draft: Draft = {
+      sections: [{ key: "progress:psicologia", title: "Psicología", text: "Solo constan notas administrativas.", references: [] }],
+      diagnosis: { text: null, cie10: null, references: [] },
+      prestacion: { practiceCode: null, module: null, quantity: null, references: [] },
+      alerts: [{ code: "no-clinical-content", message: "Sin contenido clínico.", sectionKey: "progress:psicologia", noteId: null }],
+    };
+    expect(validateDraft(draft, sources).alerts.map((a) => a.code)).toEqual(["no-clinical-content"]);
+  });
+
   it("flags a prestación quantity that no cited source states", () => {
     const draft: Draft = {
       sections: [{ key: "reason", title: "Motivo", text: "", references: [] }],

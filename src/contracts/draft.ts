@@ -37,8 +37,8 @@ export const alertCodeSchema = z.enum([
 export const alertSchema = z.object({
   code: alertCodeSchema,
   message: z.string().min(1),
-  sectionKey: z.string().nullable().default(null),
-  noteId: z.string().nullable().default(null),
+  sectionKey: z.string().nullable(),
+  noteId: z.string().nullable(),
 });
 export type Alert = z.infer<typeof alertSchema>;
 

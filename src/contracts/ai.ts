@@ -36,7 +36,7 @@ export const selectedSpecialtySchema = z.object({
     z.object({
       code: z.enum(["ambiguous-kind", "label-override", "contradiction", "undated", "no-clinical-content", "unknown-specialty"]),
       message: z.string().min(1),
-      noteId: z.string().nullable().default(null),
+      noteId: z.string().nullable(),
     }),
   ),
 });
