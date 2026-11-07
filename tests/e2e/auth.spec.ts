@@ -15,9 +15,10 @@ test("admin creates a user, the user must change the temporary password, and a d
   const email = `staff-${Date.now()}@e2e.test`;
 
   await signIn(page, e2eAdmin.email, e2eAdmin.password);
-  await expect(page.getByText("Sin casos")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Arrastrá los PDF de Medexis" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Usuarios" }).click();
+  await page.getByRole("button", { name: /^Cuenta de / }).click();
+  await page.getByRole("menuitem", { name: "Usuarios" }).click();
   // The dialog closes with Cancelar and has no other close button.
   await page.getByRole("button", { name: "Nuevo usuario" }).click();
   const dialog = page.getByRole("dialog", { name: "Nuevo usuario" });
@@ -43,19 +44,20 @@ test("admin creates a user, the user must change the temporary password, and a d
   await staffPage.getByLabel("Contraseña nueva", { exact: true }).fill("staff-new-password-1");
   await staffPage.getByLabel("Repetir contraseña nueva").fill("staff-new-password-1");
   await staffPage.getByRole("button", { name: "Cambiar contraseña" }).click();
-  await expect(staffPage.getByText("Sin casos")).toBeVisible();
-  await expect(staffPage.getByRole("link", { name: "Usuarios" })).toHaveCount(0);
+  await expect(staffPage.getByRole("heading", { name: "Arrastrá los PDF de Medexis" })).toBeVisible();
+  await staffPage.getByRole("button", { name: /^Cuenta de / }).click();
+  await expect(staffPage.getByRole("menuitem", { name: "Cambiar contraseña" })).toBeVisible();
+  await expect(staffPage.getByRole("menuitem", { name: "Usuarios" })).toHaveCount(0);
+  await staffPage.keyboard.press("Escape");
 
   // The user has a case loaded when the admin disables the account: the next
   // clinical call clears the tab, explains at sign-in, and sign-in is refused.
   await staffPage.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-b-renovacion-pami.pdf");
   await expect(staffPage.getByTestId("case-state")).toHaveText("Confirmar datos");
-  await staffPage.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
-  await expect(staffPage.getByTestId("case-state")).toHaveText("Listo para analizar");
   const row = page.getByTestId(`user-row-${email}`);
   await row.getByRole("button", { name: "Deshabilitar" }).click();
   await expect(row).toContainText("Deshabilitado");
-  await staffPage.getByRole("button", { name: "Analizar fuentes" }).click();
+  await staffPage.getByRole("button", { name: "Confirmar y analizar" }).click();
   await expect(staffPage).toHaveURL(/\/sign-in\?motivo=expired$/);
   await expect(staffPage.getByRole("status")).toContainText("La sesión terminó y la pestaña se vació.");
   await staffPage.goto("/");

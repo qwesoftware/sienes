@@ -3,10 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { MainAction } from "@/components/workspace/main-action";
 import { authClient } from "@/lib/auth-client";
 
 export function SignInForm() {
@@ -18,6 +18,10 @@ export function SignInForm() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!email || !password) {
+      setError("Completá el email y la contraseña.");
+      return;
+    }
     setPending(true);
     setError(null);
     const result = await authClient.signIn.email({ email, password });
@@ -65,10 +69,10 @@ export function SignInForm() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      <Button type="submit" disabled={pending || !email || !password}>
+      <MainAction type="submit" disabled={pending}>
         {pending ? <Spinner data-icon="inline-start" aria-hidden /> : null}
         Ingresar
-      </Button>
+      </MainAction>
     </form>
   );
 }

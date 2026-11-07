@@ -46,7 +46,7 @@ export function MainAction({ className, ref, ...props }: React.ComponentProps<ty
       title={shortcut}
       {...props}
       ref={setRef}
-      className={cn("bg-brand-magenta-strong text-white hover:bg-brand-magenta-deep", className)}
+      className={cn("h-10 rounded-full! bg-brand-magenta-strong px-5 text-white hover:bg-brand-magenta-deep disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100", className)}
     />
   );
 }

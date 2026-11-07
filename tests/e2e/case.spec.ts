@@ -8,15 +8,18 @@ async function signIn(page: Page) {
   await page.getByLabel("Email").fill(e2eAdmin.email);
   await page.getByLabel("Contraseña", { exact: true }).fill(e2eAdmin.password);
   await page.getByRole("button", { name: "Ingresar" }).click();
-  await expect(page.getByText("Sin casos")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Arrastrá los PDF de Medexis" })).toBeVisible();
 }
+
+const stage = (page: Page, name: string) => page.getByRole("navigation", { name: "Etapas" }).getByRole("button", { name });
+const chooseInsurer = (page: Page, name: string) => page.getByRole("group", { name: /^Obra social/ }).getByRole("button", { name }).click();
 
 test("a staff member uploads an export, reviews the header and confirms it", async ({ page }) => {
   await signIn(page);
   await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-a-renovacion-osde.pdf");
 
   await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
-  await expect(page.getByTestId("export-summary")).toContainText("Exportación del 02/09/2026 al 14/10/2026");
+  await expect(page.getByTestId("export-summary")).toContainText("02/09/2026 al 14/10/2026");
   await expect(page.getByTestId("export-summary")).toContainText("7 notas");
   await expect(page.getByTestId("export-summary")).toContainText("1 página escaneada ignorada");
   await expect(page.getByLabel("Paciente")).toHaveValue("PEREYRA, MARTA LUCIA");
@@ -28,25 +31,56 @@ test("a staff member uploads an export, reviews the header and confirms it", asy
   await expect(page.getByTestId("status-memberNumber")).toHaveText("Corregido");
 
   // The coverage "390-OSDE" proposes OSDE; a manual change drops the proposal mark.
-  const insurer = page.getByRole("combobox", { name: "Obra social destino" });
-  await expect(insurer).toContainText("OSDE");
-  await expect(page.getByTestId("insurer-proposed")).toHaveText("Propuesta");
-  await insurer.click();
-  await page.getByRole("option", { name: "PAMI" }).click();
-  await expect(insurer).toContainText("PAMI");
+  const insurer = page.getByRole("group", { name: /^Obra social/ });
+  await expect(insurer.getByRole("button", { name: "OSDE" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("insurer-proposed")).toHaveText("según la cobertura");
+  await chooseInsurer(page, "PAMI");
+  await expect(insurer.getByRole("button", { name: "PAMI" })).toHaveAttribute("aria-pressed", "true");
+  await expect(insurer.getByRole("button", { name: "OSDE" })).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByTestId("insurer-proposed")).toHaveCount(0);
-  await insurer.click();
-  await page.getByRole("option", { name: "OSDE" }).click();
-  await page.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
-  await expect(page.getByTestId("case-state")).toHaveText("Listo para analizar");
-  // The confirmed header collapses to a one-line summary; the main action of the next step takes focus.
-  await expect(page.getByTestId("header-summary")).toContainText("PEREYRA, MARTA LUCIA · DNI 11222333 · Afiliado 61234567899 · OSDE · CUD sin información");
-  await expect(page.getByLabel("Paciente")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Analizar fuentes" })).toBeFocused();
+  await chooseInsurer(page, "OSDE");
 
+  // Later stages stay closed until the data is confirmed; confirming starts the analysis.
+  await expect(stage(page, "Fuentes")).toBeDisabled();
+  await page.locator("form").getByRole("button", { name: "Confirmar y analizar" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Revisar fuentes");
+  // The identity stays in the case header; the main action of the next stage takes focus.
+  await expect(page.getByTestId("header-summary")).toHaveText("DNI 11222333 · Afiliado 61234567899 · OSDE · CUD sin información");
+  await expect(page.getByLabel("Paciente")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Generar resumen" })).toBeFocused();
+
+  // Going back to a finished stage offers the way forward.
+  await stage(page, "Datos").click();
+  await page.getByRole("button", { name: "Continuar" }).click();
+  await expect(page.getByRole("button", { name: "Generar resumen" })).toBeVisible();
+
+  // Going back shows the data read-only; editing asks for a new confirmation, without analyzing again.
+  await stage(page, "Datos").click();
   await page.getByRole("button", { name: "Editar datos" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
   await expect(page.getByLabel("Paciente")).toHaveValue("PEREYRA, MARTA LUCIA");
+  await page.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Revisar fuentes");
+});
+
+test("a lone pending case offers one action, not a second batch button", async ({ page }) => {
+  await signIn(page);
+  await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-a-renovacion-osde.pdf");
+  await page.getByRole("button", { name: "Confirmar y analizar" }).click();
+  await expect(page.getByRole("button", { name: "Generar resumen" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Procesar pendientes/ })).toHaveCount(0);
+});
+
+test("a failed analysis says so and can be retried from the sources stage", async ({ page }) => {
+  await page.route("**/api/select", (route) => route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: "El proveedor de IA no respondió correctamente." }) }));
+  await signIn(page);
+  await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-a-renovacion-osde.pdf");
+  await page.getByRole("button", { name: "Confirmar y analizar" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Error");
+  await expect(page.getByRole("alert").filter({ hasText: "No se pudo analizar la historia" })).toBeVisible();
+  await page.unroute("**/api/select");
+  await page.getByRole("button", { name: "Analizar fuentes" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Revisar fuentes");
 });
 
 test("an export without a text layer is rejected with instructions", async ({ page }) => {
@@ -54,6 +88,8 @@ test("an export without a text layer is rejected with instructions", async ({ pa
   await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/sin-texto.pdf");
   await expect(page.getByTestId("case-state")).toHaveText("Error");
   await expect(page.getByRole("alert").filter({ hasText: "No se pudo procesar" })).toContainText("Exportalo de nuevo desde Medexis");
+  await page.getByRole("button", { name: "Quitar caso" }).click();
+  await expect(page.getByRole("heading", { name: "Arrastrá los PDF de Medexis" })).toBeVisible();
 });
 
 test("finishing clears every case from the tab", async ({ page }) => {
@@ -61,20 +97,16 @@ test("finishing clears every case from the tab", async ({ page }) => {
   await page.getByLabel("Cargar PDF").setInputFiles(["fixtures/exports/caso-b-renovacion-pami.pdf", "fixtures/exports/caso-c-infantojuvenil.pdf"]);
   await expect(page.getByRole("list", { name: "Casos cargados" }).getByRole("listitem")).toHaveCount(2);
   await page.getByRole("button", { name: "Finalizar y limpiar" }).click();
-  await expect(page.getByText("Sin casos")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Arrastrá los PDF de Medexis" })).toBeVisible();
 });
 
 test("the reviewer analyzes the export and adjusts the proposed sources", async ({ page }) => {
   await signIn(page);
   await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-a-renovacion-osde.pdf");
   await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
-  await page.getByRole("combobox", { name: "Obra social destino" }).click();
-  await page.getByRole("option", { name: "OSDE" }).click();
-  await page.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
-  await expect(page.getByTestId("case-state")).toHaveText("Listo para analizar");
-
-  await page.getByRole("button", { name: "Analizar fuentes" }).click();
-  await expect(page.getByTestId("case-state")).toHaveText("Listo para generar");
+  await chooseInsurer(page, "OSDE");
+  await page.locator("form").getByRole("button", { name: "Confirmar y analizar" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Revisar fuentes");
 
   // The PSICOLOGIA-labelled note with kinesiology content is flagged, not silently moved.
   const kine = page.getByTestId("specialty-kinesiologia");
@@ -88,18 +120,24 @@ test("the reviewer analyzes the export and adjusts the proposed sources", async 
   await primary.click();
   await page.getByRole("option", { name: /14\/10\/2026/ }).click();
   await expect(primary).toContainText("14/10/2026");
-  await expect(page.getByTestId("case-state")).toHaveText("Listo para generar");
+  await expect(page.getByTestId("case-state")).toHaveText("Revisar fuentes");
 
   // With a draft the sources are read-only; changing them asks first and discards the draft.
   await page.getByRole("button", { name: "Generar resumen" }).click();
-  await expect(page.getByTestId("case-state")).toHaveText("Borrador");
-  await page.getByTestId("sources-summary").getByText("Ver o cambiar fuentes").click();
+  await expect(page.getByTestId("case-state")).toHaveText("Revisar resumen");
+  // The summary's diagnosis repeats the portal field: one row, until the reviewer wants its own text.
+  const diagnosis = page.getByTestId("section-diagnosis");
+  await expect(diagnosis).toContainText("Igual que en Datos del portal.");
+  await expect(diagnosis.getByRole("textbox")).toHaveCount(0);
+  await diagnosis.getByRole("button", { name: "Editar aparte" }).click();
+  await expect(page.getByTestId("section-diagnosis").getByRole("textbox")).toHaveValue(await page.getByTestId("field-diagnosis.text").inputValue());
+  await stage(page, "Fuentes").click();
   await expect(page.getByTestId("specialty-kinesiologia")).toContainText("14/10/2026");
   await expect(page.getByRole("combobox", { name: "Entrada principal de Kinesiología" })).toHaveCount(0);
   await page.getByRole("button", { name: "Cambiar fuentes" }).click();
   await expect(page.getByRole("alertdialog")).toContainText("Se descarta el borrador y las correcciones");
   await page.getByRole("alertdialog").getByRole("button", { name: "Cambiar fuentes" }).click();
-  await expect(page.getByTestId("case-state")).toHaveText("Listo para generar");
+  await expect(page.getByTestId("case-state")).toHaveText("Revisar fuentes");
   await expect(page.getByRole("combobox", { name: "Entrada principal de Kinesiología" })).toBeVisible();
 });
 
@@ -107,22 +145,25 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
   await signIn(page);
   await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-b-renovacion-pami.pdf");
   await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
-  await page.getByRole("combobox", { name: "Obra social destino" }).click();
-  await page.getByRole("option", { name: "PAMI" }).click();
-  await page.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
-  await page.getByRole("button", { name: "Analizar fuentes" }).click();
-  await expect(page.getByTestId("case-state")).toHaveText("Listo para generar");
+  await chooseInsurer(page, "PAMI");
+  await page.locator("form").getByRole("button", { name: "Confirmar y analizar" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Revisar fuentes");
 
   await page.getByRole("button", { name: "Generar resumen" }).click();
-  await expect(page.getByTestId("case-state")).toHaveText("Borrador");
-  await expect(page.getByRole("region", { name: "Borrador" }).locator("..")).toBeFocused();
+  await expect(page.getByTestId("case-state")).toHaveText("Revisar resumen");
+  await expect(page.getByRole("region", { name: "Borrador" }).locator("../..")).toBeFocused();
   await expect(page.getByTestId("field-diagnosis.cie10")).toHaveValue("G20");
   await expect(page.getByTestId("field-prestacion.practiceCode")).toHaveValue("250101");
   await expect(page.getByTestId("field-prestacion.quantity")).toHaveValue("72");
   await expect(page.getByTestId("section-progress:kinesiologia").getByRole("textbox")).toContainText("freezing");
 
-  // The confirmed sources collapse to a summary once the draft exists.
-  await expect(page.getByTestId("sources-summary")).toContainText("Fuentes confirmadas");
+  // The panel follows the section the reviewer is on and shows the notes behind it.
+  const panel = page.getByTestId("reference-panel");
+  await expect(panel).toContainText("Fuentes de Motivo");
+  await page.getByTestId("section-progress:kinesiologia").getByRole("textbox").click();
+  await expect(panel).toContainText("Fuentes de Kinesiología");
+  await expect(panel).toContainText("freezing");
+  await expect(panel).toContainText("p. ");
 
   // A section without content offers to add text instead of an empty box.
   const assessments = page.getByTestId("section-assessments");
@@ -131,6 +172,7 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
   await expect(assessments.getByRole("textbox")).toBeFocused();
 
   // Copy and download appear only once the review is confirmed.
+  await expect(stage(page, "Copiar")).toBeDisabled();
   const copyIndicaciones = page.getByRole("button", { name: "Copiar Indicaciones" });
   await expect(copyIndicaciones).toHaveCount(0);
   const copyReason = page.getByTestId("section-reason").getByRole("button", { name: "Copiar" });
@@ -139,6 +181,7 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
 
   await page.getByRole("button", { name: "Revisé el contenido" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Revisado");
+  await page.getByText("Copiar por sección").click();
   await expect(copyReason).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Descargar Word" }).click();
@@ -152,13 +195,17 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
   await expect(indicaciones).toContainText(/[1-9]\d* caracteres/);
 
   // Removing a case with a draft asks first.
-  await page.getByRole("button", { name: "Quitar caso" }).click();
+  await page.getByRole("button", { name: "Más acciones del caso" }).click();
+  await page.getByRole("menuitem", { name: "Quitar caso" }).click();
   await expect(page.getByRole("alertdialog")).toContainText("Se descarta el borrador");
   await page.getByRole("button", { name: "Cancelar" }).click();
 
-  // An edit invalidates the review: copy is hidden again and a new confirmation is needed.
+  // An edit invalidates the review: copy closes again and a new confirmation is needed.
+  await stage(page, "Revisar").click();
+  await expect(page.getByRole("button", { name: "Copiar o descargar" })).toBeVisible();
   await page.getByTestId("section-reason").getByRole("textbox").fill("Se solicita la renovación del módulo de rehabilitación.");
-  await expect(page.getByTestId("case-state")).toHaveText("Borrador");
+  await expect(page.getByTestId("case-state")).toHaveText("Revisar resumen");
+  await expect(stage(page, "Copiar")).toBeDisabled();
   await expect(copyReason).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Revisé el contenido" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Motivo de la edición de Motivo" })).toBeVisible();
@@ -171,6 +218,7 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
   });
   await page.getByRole("button", { name: "Revisé el contenido" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Revisado");
+  await stage(page, "Revisar").click();
   await page.getByRole("combobox", { name: "Motivo de la edición de Motivo" }).click();
   await page.getByRole("option", { name: "Redacción" }).click();
   await expect.poll(() => feedbackBodies.at(-1)?.edits.find((e) => e.fieldKey === "reason")?.reason).toBe("wording");
@@ -185,24 +233,22 @@ test("a feedback storage failure shows a notice but never blocks copy or downloa
   await page.route("**/api/feedback", (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Error interno" }) }));
   await signIn(page);
   await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-c-infantojuvenil.pdf");
-  await page.getByRole("combobox", { name: "Obra social destino" }).click();
-  await page.getByRole("option", { name: "Swiss Medical" }).click();
-  await page.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
-  await page.getByRole("button", { name: "Analizar fuentes" }).click();
+  await chooseInsurer(page, "Swiss Medical");
+  await page.locator("form").getByRole("button", { name: "Confirmar y analizar" }).click();
   await page.getByRole("button", { name: "Generar resumen" }).click();
-  await expect(page.getByTestId("case-state")).toHaveText("Borrador");
+  await expect(page.getByTestId("case-state")).toHaveText("Revisar resumen");
   // A draft with alerts starts at them.
   await expect(page.getByTestId("draft-alerts")).toBeFocused();
   await page.getByRole("group", { name: "Calificación de Motivo" }).getByRole("button", { name: "4 de 5" }).click();
 
   // Confirming over open alerts and empty portal fields asks first.
-  await expect(page.getByText("1 alerta abierta · Práctica, Módulo y Cantidad vacíos", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Revisé el contenido" }).click();
-  await expect(page.getByRole("alertdialog")).toContainText("El caso entra al ZIP tal como está.");
+  await expect(page.getByRole("alertdialog")).toContainText("1 alerta abierta · Práctica, Módulo y Cantidad vacíos.");
   await expect(page.getByRole("alertdialog").getByRole("button", { name: "Cancelar" })).toBeFocused();
   await page.getByRole("button", { name: "Confirmar igual" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Revisado");
   await expect(page.getByRole("status").filter({ hasText: "No se pudo guardar el feedback" })).toBeVisible();
+  await page.getByText("Copiar por sección").click();
   await expect(page.getByTestId("section-reason").getByRole("button", { name: "Copiar" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Descargar Word" })).toBeVisible();
 });
@@ -230,43 +276,46 @@ test("a batch processes three exports with failures, retries only the failed cas
   ]);
   const items = page.getByRole("list", { name: "Casos cargados" }).getByRole("listitem");
   await expect(items).toHaveCount(3);
-  for (const [index, insurer] of [["0", "OSDE"], ["1", "PAMI"], ["2", "Swiss Medical"]] as const) {
-    await items.nth(Number(index)).getByRole("button").click();
-    await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
-    await page.getByRole("combobox", { name: "Obra social destino" }).click();
-    await page.getByRole("option", { name: insurer }).click();
-    await page.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
-    await expect(page.getByTestId("case-state")).toHaveText("Listo para analizar");
-  }
-
-  await page.getByRole("button", { name: "Procesar pendientes (3)" }).click();
-  await expect(items.nth(0)).toContainText("Borrador");
+  // Each confirmation moves on to the next case; the last one starts the batch.
+  await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
+  await chooseInsurer(page, "OSDE");
+  await page.locator("form").getByRole("button", { name: "Confirmar y seguir" }).click();
+  await expect(items.nth(1).getByRole("button")).toHaveAttribute("aria-current", "true");
+  await chooseInsurer(page, "PAMI");
+  await page.locator("form").getByRole("button", { name: "Confirmar y seguir" }).click();
+  await expect(items.nth(2).getByRole("button")).toHaveAttribute("aria-current", "true");
+  await chooseInsurer(page, "Swiss Medical");
+  await page.locator("form").getByRole("button", { name: "Confirmar y procesar 3" }).click();
+  await expect(items.nth(0)).toContainText("Revisar resumen");
   await expect(items.nth(1)).toContainText("Error");
   await expect(items.nth(2)).toContainText("Error");
   await expect(page.getByRole("button", { name: "Procesar pendientes (2)" })).toBeVisible();
 
   // A second run retries only the two failed cases: the PAMI case now generates its draft.
   await page.getByRole("button", { name: "Procesar pendientes (2)" }).click();
-  await expect(items.nth(1)).toContainText("Borrador");
+  await expect(items.nth(1)).toContainText("Revisar resumen");
   await expect(items.nth(2)).toContainText("Error");
-  await expect(page.getByRole("button", { name: "Procesar pendientes (1)" })).toBeVisible();
   expect(pamiGenerateCalls).toBe(3);
 
-  // Only the first case is reviewed; the second keeps an unreviewed draft, the third failed.
+  // Two cases are reviewed and the third failed: the ZIP appears from two reviewed cases and leaves the failed one out.
   await items.nth(0).getByRole("button").click();
+  await expect(page.getByRole("button", { name: "Procesar pendientes (1)" })).toBeVisible();
+  await page.getByRole("button", { name: "Revisé el contenido" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Revisado");
+  await expect(page.getByRole("button", { name: /^Descargar ZIP/ })).toHaveCount(0);
+  await items.nth(1).getByRole("button").click();
   await page.getByRole("button", { name: "Revisé el contenido" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Revisado");
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Descargar ZIP (1 revisado)" }).click();
+  await page.getByRole("button", { name: "Descargar ZIP (2 revisados)" }).click();
   const download = await downloadPromise;
   const zip = await JSZip.loadAsync(await readFile(await download.path()));
-  expect(Object.keys(zip.files).sort()).toEqual(["RHC-PEREYRA-MARTA-LUCIA.docx", "excluidos.txt"]);
+  expect(Object.keys(zip.files).sort()).toEqual(["RHC-PEREYRA-MARTA-LUCIA.docx", "RHC-QUIROGA-HECTOR-OSVALDO.docx", "excluidos.txt"]);
   const excluded = await zip.file("excluidos.txt")!.async("string");
-  expect(excluded).toContain("QUIROGA, HECTOR OSVALDO: borrador");
   expect(excluded).toContain("ACOSTA, TOMAS: error");
 
-  // Finishing asks first because a draft would be lost; the ZIP counted as the download of the reviewed case.
-  await expect(page.getByTestId("reviewed-count")).toHaveText("1 de 3 revisados");
+  // Finishing asks first because a draft would be lost; the ZIP counted as the download of the reviewed cases.
+  await expect(page.getByTestId("reviewed-count")).toHaveText("2 de 3 revisados");
   await page.getByRole("button", { name: "Finalizar y limpiar" }).click();
   await expect(page.getByRole("alertdialog")).toContainText("¿Finalizar y borrar 3 casos?");
   await expect(page.getByRole("alertdialog")).not.toContainText("sin descargar");
@@ -274,5 +323,5 @@ test("a batch processes three exports with failures, retries only the failed cas
   await expect(items).toHaveCount(3);
   await page.getByRole("button", { name: "Finalizar y limpiar" }).click();
   await page.getByRole("button", { name: "Finalizar", exact: true }).click();
-  await expect(page.getByText("Sin casos")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Arrastrá los PDF de Medexis" })).toBeVisible();
 });

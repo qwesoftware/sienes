@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { MainAction } from "@/components/workspace/main-action";
 import { apiFetch } from "@/lib/client-api";
 
 export function ChangePasswordForm({ forced }: { forced: boolean }) {
@@ -86,10 +87,15 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      <Button type="submit" disabled={pending || !currentPassword || !newPassword || mismatch || tooShort}>
+      <MainAction type="submit" disabled={pending || !currentPassword || !newPassword || mismatch || tooShort}>
         {pending ? <Spinner data-icon="inline-start" aria-hidden /> : null}
         Cambiar contraseña
-      </Button>
+      </MainAction>
+      {forced ? null : (
+        <Link href="/" className="text-center text-sm text-muted-foreground underline-offset-2 hover:underline">
+          Volver
+        </Link>
+      )}
     </form>
   );
 }

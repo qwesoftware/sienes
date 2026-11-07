@@ -18,7 +18,7 @@ export async function rhcZip(cases: CaseRecord[], logo?: Uint8Array): Promise<Bl
     zip.file(name, await rhcBlob({ header: c.header!, insurerLabel: insurerLabels[c.insurer!], draft: c.draft!, dateRange: c.parsed?.dateRange ?? null, logo }));
   }
   if (excluded.length > 0) {
-    const lines = excluded.map((c) => `${c.header?.patientName.value ?? c.fileName}: ${c.state === "reviewed" ? "sin revisar" : stateLabels[c.state].toLowerCase()}`);
+    const lines = excluded.map((c) => `${c.header?.patientName.value ?? c.fileName}: ${c.state === "reviewed" ? "sin revisar" : c.state === "draft" ? "borrador" : stateLabels[c.state].toLowerCase()}`);
     zip.file("excluidos.txt", ["Casos no incluidos en este lote:", ...lines].join("\n") + "\n");
   }
   return zip.generateAsync({ type: "blob" });
