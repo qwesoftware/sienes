@@ -6,15 +6,15 @@ import { currentSession } from "@/lib/session";
 export const metadata = { title: "Ingresar · Sienes" };
 
 // Why the app sent the user here, when it did (see `leave` in the store).
-const notices: Record<string, string> = {
-  expired: "La sesión terminó y la pestaña se vació. Ingresá de nuevo.",
-  disabled: "La cuenta está deshabilitada y la pestaña se vació. Consultá con el administrador.",
-};
+const notices = new Map([
+  ["expired", "La sesión terminó y la pestaña se vació. Ingresá de nuevo."],
+  ["disabled", "La cuenta está deshabilitada y la pestaña se vació. Consultá con el administrador."],
+]);
 
 export default async function SignInPage({ searchParams }: { searchParams: Promise<{ motivo?: string }> }) {
   if (await currentSession()) redirect("/");
   const { motivo } = await searchParams;
-  const notice = motivo ? notices[motivo] : undefined;
+  const notice = motivo ? notices.get(motivo) : undefined;
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-lg font-medium">Ingresar</h1>
