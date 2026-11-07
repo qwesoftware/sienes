@@ -8,6 +8,7 @@ import { useWorkspace } from "@/case/store";
 import type { CaseRecord } from "@/case/types";
 import { formatDate, stateLabels } from "@/lib/format";
 import { AnalyzeStep } from "./analyze-step";
+import { DraftStep } from "./draft-step";
 import { HeaderForm } from "./header-form";
 
 export function CaseDetail({ record }: { record: CaseRecord }) {
@@ -60,6 +61,7 @@ export function CaseDetail({ record }: { record: CaseRecord }) {
 
       {parsed ? <HeaderForm record={record} /> : null}
       {parsed ? <AnalyzeStep record={record} /> : null}
+      {parsed ? <DraftStep record={record} /> : null}
     </section>
   );
 }

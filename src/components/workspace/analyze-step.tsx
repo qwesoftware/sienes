@@ -26,7 +26,7 @@ export function AnalyzeStep({ record }: { record: CaseRecord }) {
 
   return (
     <div className="flex flex-col gap-6">
-      {record.state === "error" && record.error ? (
+      {record.state === "error" && record.error && !record.selection ? (
         <Alert variant="destructive" role="alert">
           <AlertTitle>No se pudo analizar la historia</AlertTitle>
           <AlertDescription>{record.error}</AlertDescription>

@@ -8,12 +8,12 @@ import { CaseList } from "./case-list";
 import { SessionDialog } from "./session-dialog";
 import { UploadZone } from "./upload-zone";
 
-const steps = ["Cargar PDF", "Revisar resumen", "Copiar o descargar"];
+const steps = ["Cargar y confirmar", "Fuentes", "Revisar resumen", "Copiar o descargar"];
 
 export function Workspace() {
   const { state, endSession } = useWorkspace();
   const selected = state.cases.find((c) => c.id === state.selectedCaseId) ?? null;
-  const step = selected?.draft ? (selected.reviewedRevision === selected.revision ? 2 : 1) : 0;
+  const step = !selected?.headerConfirmed ? 0 : !selected.draft ? 1 : selected.reviewedRevision === selected.revision ? 3 : 2;
 
   return (
     <div className="flex flex-col gap-6">

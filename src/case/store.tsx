@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import type { SelectRequest, SelectResponse } from "@/contracts/ai";
+import type { GenerateRequest, GenerateResponse, SelectRequest, SelectResponse, SourceNote } from "@/contracts/ai";
+import type { Note } from "@/contracts/case";
 import { apiFetch } from "@/lib/client-api";
 import { parseMedexis, ParseError } from "@/parser/medexis";
 import { extractPagesBrowser } from "@/parser/pdf-browser";
@@ -24,8 +25,13 @@ type WorkspaceContextValue = {
   // Clinical calls in flight pause the idle timer.
   beginClinicalCall: () => () => void;
   analyze: (caseId: string) => Promise<void>;
+  generate: (caseId: string) => Promise<void>;
   cancelAttempt: (caseId: string) => void;
 };
+
+function toSource(n: Note): SourceNote {
+  return { id: n.id, recordedDate: n.recordedDate, authorName: n.authorName, authorSpecialtyLabel: n.authorSpecialtyLabel, text: n.text, pages: n.pages };
+}
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
@@ -141,14 +147,7 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
       const body: SelectRequest = {
         attemptId,
         insurer: record.insurer,
-        notes: record.parsed.notes.map((n) => ({
-          id: n.id,
-          recordedDate: n.recordedDate,
-          authorName: n.authorName,
-          authorSpecialtyLabel: n.authorSpecialtyLabel,
-          text: n.text,
-          pages: n.pages,
-        })),
+        notes: record.parsed.notes.map(toSource),
       };
       dispatch({ type: "analyze-started", caseId, attemptId });
       const release = beginClinicalCall();
@@ -167,6 +166,39 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
     [beginClinicalCall],
   );
 
+  // Generate run: only the notes the confirmed selection uses travel.
+  const generate = useCallback(
+    async (caseId: string) => {
+      const record = stateRef.current.cases.find((c) => c.id === caseId);
+      if (!record?.parsed || !record.insurer || !record.selection || !record.headerConfirmed) return;
+      const used = new Set([
+        ...record.selection.specialties.flatMap((s) => [s.primaryNoteId, ...s.supportingNoteIds]),
+        ...record.selection.diagnosisNoteIds,
+        ...record.selection.historyNoteIds,
+        ...record.selection.medicationNoteIds,
+      ]);
+      const sources = record.parsed.notes.filter((n) => used.has(n.id)).map(toSource);
+      const attemptId = randomId();
+      const controller = new AbortController();
+      controllers.current.set(caseId, controller);
+      const body: GenerateRequest = { attemptId, insurer: record.insurer, selection: record.selection, sources };
+      dispatch({ type: "generate-started", caseId, attemptId });
+      const release = beginClinicalCall();
+      try {
+        const response = await apiFetch<GenerateResponse>("/api/generate", { method: "POST", json: body, signal: controller.signal });
+        if (response.attemptId !== attemptId) return;
+        dispatch({ type: "generated", caseId, attemptId, draft: response.draft, versions: response.versions });
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        dispatch({ type: "generate-failed", caseId, attemptId, message: err instanceof Error ? err.message : "No se pudo generar el resumen." });
+      } finally {
+        release();
+        if (controllers.current.get(caseId) === controller) controllers.current.delete(caseId);
+      }
+    },
+    [beginClinicalCall],
+  );
+
   const cancelAttempt = useCallback((caseId: string) => {
     controllers.current.get(caseId)?.abort();
     controllers.current.delete(caseId);
@@ -174,8 +206,8 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
   }, []);
 
   const value = useMemo<WorkspaceContextValue>(
-    () => ({ state, dispatch, limits, addFiles, endSession, notice, continueWorking, dismissNotice: () => setNotice(null), beginClinicalCall, analyze, cancelAttempt }),
-    [state, limits, addFiles, endSession, notice, continueWorking, beginClinicalCall, analyze, cancelAttempt],
+    () => ({ state, dispatch, limits, addFiles, endSession, notice, continueWorking, dismissNotice: () => setNotice(null), beginClinicalCall, analyze, generate, cancelAttempt }),
+    [state, limits, addFiles, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt],
   );
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

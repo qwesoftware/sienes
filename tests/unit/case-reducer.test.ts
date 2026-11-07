@@ -108,3 +108,60 @@ describe("select run in the reducer", () => {
     expect(insurerChanged.cases[0]).toMatchObject({ selection: null, state: "confirmation-required" });
   });
 });
+
+describe("draft review in the reducer", () => {
+  const selection = { specialties: [], diagnosisNoteIds: [], historyNoteIds: [], medicationNoteIds: [], excludedNoteIds: [] };
+  const draft = {
+    sections: [{ key: "reason", title: "Motivo", text: "Renovación.", references: [] }],
+    diagnosis: { text: "ACV", cie10: null, references: [] },
+    prestacion: { practiceCode: null, module: null, quantity: 24, references: [] },
+    alerts: [],
+  };
+  const withDraft = run([
+    { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }] },
+    { type: "parsed", caseId: "c1", parsed },
+    { type: "set-insurer", caseId: "c1", insurer: "osde" },
+    { type: "confirm-header", caseId: "c1" },
+    { type: "analyze-started", caseId: "c1", attemptId: "a1" },
+    { type: "analyzed", caseId: "c1", attemptId: "a1", selection },
+    { type: "generate-started", caseId: "c1", attemptId: "g1" },
+    { type: "generated", caseId: "c1", attemptId: "g1", draft, versions: { model: "mock", modules: {} } },
+  ]);
+
+  it("binds the review to the revision and invalidates it on any edit", () => {
+    expect(withDraft.cases[0].state).toBe("draft");
+    const reviewed = workspaceReducer(withDraft, { type: "confirm-review", caseId: "c1" });
+    expect(reviewed.cases[0]).toMatchObject({ state: "reviewed", reviewedRevision: reviewed.cases[0].revision });
+    const edited = workspaceReducer(reviewed, { type: "edit-section", caseId: "c1", key: "reason", text: "Renovación del tratamiento." });
+    expect(edited.cases[0].state).toBe("draft");
+    expect(edited.cases[0].reviewedRevision).not.toBe(edited.cases[0].revision);
+    expect(edited.cases[0].draft?.sections[0].text).toBe("Renovación del tratamiento.");
+    const headerEdited = workspaceReducer(reviewed, { type: "edit-header", caseId: "c1", field: "memberNumber", value: "1" });
+    expect(headerEdited.cases[0].reviewedRevision).not.toBe(headerEdited.cases[0].revision);
+  });
+
+  it("records the kind of edit per field, drops it when the generated value returns and keeps an optional reason", () => {
+    const modified = workspaceReducer(withDraft, { type: "edit-section", caseId: "c1", key: "reason", text: "Otra cosa." });
+    expect(modified.cases[0].edits).toEqual({ reason: { change: "modification", reason: null } });
+    const deleted = workspaceReducer(modified, { type: "edit-section", caseId: "c1", key: "reason", text: "" });
+    expect(deleted.cases[0].edits.reason.change).toBe("deletion");
+    const added = workspaceReducer(withDraft, { type: "edit-field", caseId: "c1", field: "diagnosis.cie10", value: "I69.3" });
+    expect(added.cases[0].edits["diagnosis.cie10"].change).toBe("addition");
+    expect(added.cases[0].draft?.diagnosis.cie10).toBe("I69.3");
+    const withReason = workspaceReducer(added, { type: "set-edit-reason", caseId: "c1", fieldKey: "diagnosis.cie10", reason: "omission" });
+    expect(withReason.cases[0].edits["diagnosis.cie10"].reason).toBe("omission");
+    const restored = workspaceReducer(withReason, { type: "edit-field", caseId: "c1", field: "diagnosis.cie10", value: "" });
+    expect(restored.cases[0].edits).toEqual({});
+    const quantity = workspaceReducer(withDraft, { type: "edit-field", caseId: "c1", field: "prestacion.quantity", value: "abc" });
+    expect(quantity.cases[0].draft?.prestacion.quantity).toBeNull();
+  });
+
+  it("discards a late generation for a canceled attempt and clears the draft when sources change", () => {
+    const started = workspaceReducer(withDraft, { type: "generate-started", caseId: "c1", attemptId: "g2" });
+    const canceled = workspaceReducer(started, { type: "cancel-attempt", caseId: "c1" });
+    const late = workspaceReducer(canceled, { type: "generated", caseId: "c1", attemptId: "g2", draft, versions: null });
+    expect(late.cases[0].state).toBe("canceled");
+    const sourcesChanged = workspaceReducer(withDraft, { type: "edit-selection", caseId: "c1", selection });
+    expect(sourcesChanged.cases[0]).toMatchObject({ draft: null, generatedDraft: null, state: "ready-to-generate" });
+  });
+});

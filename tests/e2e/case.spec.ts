@@ -76,3 +76,46 @@ test("the reviewer analyzes the export and adjusts the proposed sources", async 
   await expect(primary).toContainText("14/10/2026");
   await expect(page.getByTestId("case-state")).toHaveText("Listo para generar");
 });
+
+test("the reviewer generates the draft, corrects it, confirms the review and downloads Word", async ({ page }) => {
+  await signIn(page);
+  await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-b-renovacion-pami.pdf");
+  await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
+  await page.getByRole("combobox", { name: "Obra social destino" }).click();
+  await page.getByRole("option", { name: "PAMI" }).click();
+  await page.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
+  await page.getByRole("button", { name: "Analizar fuentes" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Listo para generar");
+
+  await page.getByRole("button", { name: "Generar resumen" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Borrador");
+  await expect(page.getByTestId("field-diagnosis.cie10")).toHaveValue("G20");
+  await expect(page.getByTestId("field-prestacion.practiceCode")).toHaveValue("250101");
+  await expect(page.getByTestId("field-prestacion.quantity")).toHaveValue("72");
+  await expect(page.getByTestId("section-progress:kinesiologia").getByRole("textbox")).toContainText("freezing");
+
+  // Copy and download stay disabled until the review is confirmed.
+  const copyReason = page.getByTestId("section-reason").getByRole("button", { name: "Copiar" });
+  await expect(copyReason).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Descargar Word" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Revisé el contenido" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Revisado");
+  await expect(copyReason).toBeEnabled();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar Word" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("RHC-QUIROGA-HECTOR-OSVALDO.docx");
+
+  // An edit invalidates the review: copy is disabled again and a new confirmation is needed.
+  await page.getByTestId("section-reason").getByRole("textbox").fill("Se solicita la renovación del módulo de rehabilitación.");
+  await expect(page.getByTestId("case-state")).toHaveText("Borrador");
+  await expect(copyReason).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Revisé el contenido" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Motivo de la edición de reason" })).toBeVisible();
+
+  // Regenerating after manual edits asks first.
+  await page.getByRole("button", { name: "Regenerar" }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("Se reemplazan las correcciones manuales");
+  await page.getByRole("button", { name: "Volver" }).click();
+});
