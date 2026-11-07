@@ -82,7 +82,9 @@ test("an idle tab locks with the cases kept and unlocks with the password", asyn
   await page.clock.fastForward("05:00");
   const lock = page.getByRole("alertdialog", { name: "Pestaña bloqueada por inactividad" });
   await expect(lock).toContainText("El caso sigue cargado.");
-  await expect(page.getByTestId("case-state")).toBeHidden();
+  // The workspace is unmounted, not hidden: no case text is left in the page for the inspector.
+  await expect(page.getByTestId("case-state")).toHaveCount(0);
+  expect(await page.content()).not.toContain("QUIROGA");
 
   // Escape does not dismiss it; a wrong password keeps it.
   await page.keyboard.press("Escape");

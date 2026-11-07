@@ -253,13 +253,5 @@ export function WorkspaceProvider({ limits, userEmail, children }: { limits: Pub
     [state, limits, userEmail, addFiles, selectNextPending, endSession, leave, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchIds, batchProgress, runBatch, cancelBatch],
   );
 
-  // While locked the workspace is hidden from view and from assistive technology;
-  // the lock dialog renders in a portal outside this wrapper.
-  return (
-    <WorkspaceContext.Provider value={value}>
-      <div inert={locked} className={locked ? "invisible" : undefined}>
-        {children}
-      </div>
-    </WorkspaceContext.Provider>
-  );
+  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

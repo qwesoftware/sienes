@@ -30,6 +30,9 @@ export function Workspace() {
   const step = !selected?.headerConfirmed ? 0 : !selected.draft ? 1 : selected.reviewedRevision === selected.revision ? 3 : 2;
   const stale = selected !== null && selected.reviewedRevision !== null && selected.reviewedRevision !== selected.revision;
 
+  // While locked the workspace is unmounted, so no case text stays in the page;
+  // the cases survive in the provider's state until the password unlocks them.
+  if (state.locked) return <SessionDialog />;
   return (
     <div className="flex flex-col gap-6">
       <SessionDialog />

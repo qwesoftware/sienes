@@ -8,7 +8,7 @@ Date: 2026-11-07. Scope: the five commits of the day (design-review plan, brand,
 |----------|-------|
 | CRITICAL | 0 |
 | HIGH | 0 |
-| MEDIUM | 1 (accepted design, documented) |
+| MEDIUM | 1 (fixed after the review) |
 | LOW | 3 (one fixed in this review) |
 
 **Overall risk:** LOW. **Recommendation:** APPROVE.
@@ -39,11 +39,13 @@ Date: 2026-11-07. Scope: the five commits of the day (design-review plan, brand,
 
 ## Findings
 
-### MEDIUM (accepted): the lock hides the clinical data, it does not remove it
+### MEDIUM (fixed after the review): the lock hides the clinical data, it does not remove it
 
 `src/case/store.tsx` wraps the workspace in `<div inert className="invisible">` while `locked`. The cases, drafts and header fields stay in React state and in the DOM. Someone at the unattended workstation can read them from the browser's developer tools or "view source" without the password; the lock stops ordinary use, not inspection.
 
 This is the behaviour the owner chose (keep the cases so an idle reviewer loses nothing) and `docs/master-doc.md` now says so. It is weaker than the previous "clear on expiry" only against an attacker with physical access to an unlocked OS session, which the lock never claimed to defend against. Mitigation if wanted later: render `null` instead of the inert wrapper while locked (state survives in the provider, the DOM no longer carries text), at the cost of component-local UI state such as which empty sections were opened.
+
+Fixed after the review: `Workspace` renders only the lock dialog while `locked`, the inert wrapper is gone, and the lock e2e test asserts the page holds no case text.
 
 ### LOW (fixed): `?motivo=` lookup reached `Object.prototype`
 
