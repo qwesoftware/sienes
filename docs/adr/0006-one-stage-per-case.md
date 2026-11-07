@@ -12,3 +12,4 @@ On November 7, 2026 the owner rejected the workspace as unintuitive: every step 
 - The combined Indicaciones text appears only in the Copiar stage: it repeats the sections, so reviewing it twice adds nothing.
 - Usuarios and Cambiar contraseña live in the account menu as full navigations, so leaving a tab with cases goes through the browser's warning instead of dropping them silently.
 - The ZIP is offered from two reviewed cases; one reviewed case is the Word its own Copiar stage already offers.
+- Narrow windows keep review usable: the sources stay beside the draft down to 768 px and dock above the action bar on phones, and the queue collapses to one line below the desktop layout.

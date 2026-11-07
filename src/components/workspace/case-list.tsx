@@ -23,7 +23,7 @@ function StateIcon({ record }: { record: CaseRecord }) {
   return <Circle className={cn(className, "text-input")} aria-hidden />;
 }
 
-export function CaseList() {
+export function CaseList({ onPick }: { onPick: () => void }) {
   const { state, dispatch } = useWorkspace();
   return (
     <ul className="flex max-h-56 min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 lg:max-h-none" aria-label="Casos cargados">
@@ -33,7 +33,10 @@ export function CaseList() {
           <li key={c.id}>
             <button
               type="button"
-              onClick={() => dispatch({ type: "select-case", caseId: c.id })}
+              onClick={() => {
+                dispatch({ type: "select-case", caseId: c.id });
+                onPick();
+              }}
               aria-current={selected ? "true" : undefined}
               className={cn("flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted", selected && "bg-accent hover:bg-accent")}
             >

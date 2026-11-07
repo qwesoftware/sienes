@@ -49,8 +49,8 @@ export function CopyStep({ record }: { record: CaseRecord }) {
       <StepBody className="flex max-w-4xl flex-col gap-8">
         <ul className="divide-y border-y">
           {portal.map(({ label, value }) => (
-            <li key={label} className="grid grid-cols-[9rem_minmax(0,1fr)_auto] items-center gap-3 py-1.5 text-sm">
-              <span className="text-muted-foreground">{label}</span>
+            <li key={label} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-1.5 text-sm sm:grid-cols-[9rem_minmax(0,1fr)_auto]">
+              <span className="col-span-2 text-muted-foreground sm:col-span-1">{label}</span>
               {value ? (
                 <span className="font-medium tabular-nums">{value}</span>
               ) : (
@@ -82,8 +82,8 @@ export function CopyStep({ record }: { record: CaseRecord }) {
             {draft.sections
               .filter((section) => section.text !== "")
               .map((section) => (
-                <li key={section.key} className="grid grid-cols-[9rem_minmax(0,1fr)_auto] items-start gap-3 py-2" data-testid={`section-${section.key}`}>
-                  <span className="pt-1 text-muted-foreground">{section.title}</span>
+                <li key={section.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 py-2 sm:grid-cols-[9rem_minmax(0,1fr)_auto]" data-testid={`section-${section.key}`}>
+                  <span className="col-span-2 pt-1 text-muted-foreground sm:col-span-1">{section.title}</span>
                   <p className="max-w-prose pt-1 whitespace-pre-wrap">{section.text}</p>
                   <CopyButton variant="ghost" text={section.text} label="Copiar" ariaLabel={`Copiar ${section.title}`} />
                 </li>

@@ -114,8 +114,15 @@
     @apply font-sans;
     color-scheme: light;
     /* Keep a focused field clear of the sticky case header and stage bar. */
-    scroll-padding-top: 9rem;
+    scroll-padding-top: 11rem;
     scroll-padding-bottom: 4.5rem;
+  }
+  /* On phones the sources dock above the stage bar, so a field has to clear them too. */
+  @media (width < 48rem) {
+    html {
+      scroll-padding-top: 4.5rem;
+      scroll-padding-bottom: calc(32dvh + 4.5rem);
+    }
   }
 }
 

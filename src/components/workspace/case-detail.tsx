@@ -109,7 +109,7 @@ function CaseHeader({ record, stage, current, onStage }: { record: CaseRecord; s
                       aria-current={s.key === stage ? "step" : undefined}
                       onClick={() => onStage(s.key)}
                       className={cn(
-                        "flex items-center gap-1.5 rounded-full px-2 py-1.5 transition-colors sm:px-3",
+                        "flex items-center gap-1 rounded-full px-1.5 py-1.5 text-[13px] transition-colors sm:gap-1.5 sm:px-3 sm:text-sm",
                         s.key === stage ? "bg-primary font-medium text-primary-foreground" : "text-foreground enabled:hover:bg-muted",
                         !reachable && "cursor-not-allowed text-muted-foreground",
                       )}

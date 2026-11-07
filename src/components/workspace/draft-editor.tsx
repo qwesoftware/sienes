@@ -94,7 +94,7 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
   const panelReferences = activeSection ? activeSection.references : [...draft.diagnosis.references, ...draft.prestacion.references];
 
   return (
-    <div className="grid items-start gap-x-8 gap-y-6 xl:grid-cols-[minmax(0,1fr)_26rem]">
+    <div className="flex flex-col gap-6 md:grid md:grid-cols-[minmax(0,1fr)_18rem] md:items-start md:gap-x-8 xl:grid-cols-[minmax(0,1fr)_26rem]">
       <section className="flex min-w-0 flex-col gap-5" aria-label="Borrador">
         {draft.alerts.length > 0 ? (
           <div role="status" data-testid="draft-alerts" tabIndex={-1} className="rounded-xl bg-brand-orange/10 px-4 py-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
@@ -147,12 +147,12 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
           </p>
         ) : null}
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5" onFocusCapture={() => setActive(PORTAL)} data-testid="portal-fields">
-          <h3 className={cn("col-span-2 text-sm font-semibold md:col-span-5", active === PORTAL && "text-primary")}>Datos del portal</h3>
-          {fieldInput("diagnosis.text", "Diagnóstico", draft.diagnosis.text ?? "", "col-span-2 md:col-span-5")}
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5" onFocusCapture={() => setActive(PORTAL)} data-testid="portal-fields">
+          <h3 className={cn("col-span-2 text-sm font-semibold xl:col-span-5", active === PORTAL && "text-primary")}>Datos del portal</h3>
+          {fieldInput("diagnosis.text", "Diagnóstico", draft.diagnosis.text ?? "", "col-span-2 xl:col-span-5")}
           {fieldInput("diagnosis.cie10", "Código CIE-10", draft.diagnosis.cie10 ?? "", "")}
           {fieldInput("prestacion.practiceCode", "Práctica", draft.prestacion.practiceCode ?? "", "")}
-          {fieldInput("prestacion.module", "Módulo", draft.prestacion.module ?? "", "md:col-span-2")}
+          {fieldInput("prestacion.module", "Módulo", draft.prestacion.module ?? "", "xl:col-span-2")}
           {fieldInput("prestacion.quantity", "Cantidad", draft.prestacion.quantity === null ? "" : String(draft.prestacion.quantity), "")}
         </div>
 
@@ -242,7 +242,7 @@ function ReferencePanel({ record, title, references, sectionKey, edited }: { rec
     <aside
       aria-label={`Fuentes de ${title}`}
       data-testid="reference-panel"
-      className="flex flex-col gap-3 border-t pt-4 xl:sticky xl:top-[9rem] xl:max-h-[calc(100dvh-9rem-5.5rem)] xl:overflow-y-auto xl:border-t-0 xl:border-l xl:pt-0 xl:pl-8"
+      className="sticky bottom-16 z-[5] -mx-6 flex max-h-[32dvh] flex-col gap-3 overflow-y-auto border-t bg-background px-6 py-3 md:top-[4.5rem] md:bottom-auto md:z-auto md:mx-0 md:max-h-[calc(100dvh-4.5rem-5.5rem)] md:border-t-0 md:border-l md:py-0 md:pr-0 md:pl-6 lg:top-[10.5rem] lg:max-h-[calc(100dvh-10.5rem-5.5rem)] xl:top-[9rem] xl:max-h-[calc(100dvh-9rem-5.5rem)] xl:pl-8"
     >
       <h3 className="text-sm font-semibold">Fuentes de {title}</h3>
       {edited ? <p className="text-xs text-muted-foreground">Tu texto no está respaldado por estas notas.</p> : null}

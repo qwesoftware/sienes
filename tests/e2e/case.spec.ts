@@ -63,6 +63,43 @@ test("a staff member uploads an export, reviews the header and confirms it", asy
   await expect(page.getByTestId("case-state")).toHaveText("Revisar fuentes");
 });
 
+test("narrow windows keep the case first and the sources in view while reviewing", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await signIn(page);
+  await page.getByLabel("Cargar PDF").setInputFiles(["fixtures/exports/caso-a-renovacion-osde.pdf", "fixtures/exports/caso-b-renovacion-pami.pdf"]);
+  await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
+
+  // On a phone the patient list is collapsed; picking a patient collapses it again.
+  const list = page.getByRole("list", { name: "Casos cargados" });
+  await expect(list).toBeHidden();
+  const toggle = page.getByRole("button", { name: "0 de 2 revisados" });
+  await toggle.click();
+  await expect(list).toBeVisible();
+  await list.getByRole("button").nth(0).click();
+  await expect(list).toBeHidden();
+
+  await page.getByRole("button", { name: "Confirmar y seguir" }).click();
+  await page.getByRole("button", { name: "Confirmar y procesar 2" }).click();
+  await toggle.click();
+  await expect(list.getByRole("listitem").nth(0)).toContainText("Revisar resumen");
+  await list.getByRole("button").nth(0).click();
+
+  // The sources stay on screen, above the bar, while the reviewer edits far down the draft.
+  const panel = page.getByTestId("reference-panel");
+  await page.getByTestId("section-indication").getByRole("textbox").click();
+  await expect(panel).toContainText("Fuentes de Indicación");
+  await expect(panel).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+
+  // At a half-screen desktop width the sources sit beside the draft.
+  await page.setViewportSize({ width: 1024, height: 700 });
+  const draftBox = (await page.getByRole("region", { name: "Borrador" }).boundingBox())!;
+  const panelBox = (await panel.boundingBox())!;
+  expect(panelBox.x).toBeGreaterThanOrEqual(draftBox.x + draftBox.width);
+  await expect(panel).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(1024);
+});
+
 test("a lone pending case offers one action, not a second batch button", async ({ page }) => {
   await signIn(page);
   await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-a-renovacion-osde.pdf");
