@@ -6,12 +6,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "dotenv";
-import { modelSetup } from "@/ai/model";
-import { costUsd, runCase } from "@/ai/run-case";
 import type { Insurer } from "@/contracts/case";
 import { parseMedexis } from "@/parser/medexis";
 import { extractPagesNode } from "@/parser/pdf-node";
 
+// Limits are read at module load, so the env file must be loaded before the AI modules.
 config({ path: ".env.dev" });
 
 const args = process.argv.slice(2);
@@ -30,6 +29,8 @@ function insurerOf(coverage: string | null): Insurer {
 }
 
 async function main() {
+  const { modelSetup } = await import("@/ai/model");
+  const { costUsd, runCase } = await import("@/ai/run-case");
   const setup = modelSetup();
   const files = readdirSync(dir).filter((f) => f.toLowerCase().endsWith(".pdf")).slice(0, limit);
   let spent = 0;

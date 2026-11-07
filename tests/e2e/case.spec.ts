@@ -141,15 +141,20 @@ test("a feedback storage failure shows a notice but never blocks copy or downloa
   await expect(page.getByRole("button", { name: "Descargar Word" })).toBeVisible();
 });
 
-test("a batch processes three exports with one failure and the ZIP holds only the reviewed documents", async ({ page }) => {
+test("a batch processes three exports with failures, retries only the failed cases and the ZIP holds only the reviewed documents", async ({ page }) => {
+  const providerDown = { status: 502, contentType: "application/json", body: JSON.stringify({ error: "El proveedor de IA no respondió correctamente." }) };
   // The infantojuvenil case fails at the select stage.
   await page.route("**/api/select", async (route) => {
     const body = route.request().postDataJSON() as { notes: { text: string }[] };
-    if (body.notes.some((n) => n.text.includes("psicopedagógica"))) {
-      await route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: "El proveedor de IA no respondió correctamente." }) });
-    } else {
-      await route.continue();
-    }
+    if (body.notes.some((n) => n.text.includes("psicopedagógica"))) await route.fulfill(providerDown);
+    else await route.continue();
+  });
+  // The PAMI case fails at the generate stage on its first batch run (both browser attempts).
+  let pamiGenerateCalls = 0;
+  await page.route("**/api/generate", async (route) => {
+    const body = route.request().postDataJSON() as { insurer: string };
+    if (body.insurer === "pami" && ++pamiGenerateCalls <= 2) await route.fulfill(providerDown);
+    else await route.continue();
   });
   await signIn(page);
   await page.getByLabel("Cargar PDF").setInputFiles([
@@ -170,9 +175,16 @@ test("a batch processes three exports with one failure and the ZIP holds only th
 
   await page.getByRole("button", { name: "Procesar pendientes (3)" }).click();
   await expect(items.nth(0)).toContainText("Borrador");
+  await expect(items.nth(1)).toContainText("Error");
+  await expect(items.nth(2)).toContainText("Error");
+  await expect(page.getByRole("button", { name: "Procesar pendientes (2)" })).toBeVisible();
+
+  // A second run retries only the two failed cases: the PAMI case now generates its draft.
+  await page.getByRole("button", { name: "Procesar pendientes (2)" }).click();
   await expect(items.nth(1)).toContainText("Borrador");
   await expect(items.nth(2)).toContainText("Error");
   await expect(page.getByRole("button", { name: "Procesar pendientes (1)" })).toBeVisible();
+  expect(pamiGenerateCalls).toBe(3);
 
   // Only the first case is reviewed; the second keeps an unreviewed draft, the third failed.
   await items.nth(0).getByRole("button").click();

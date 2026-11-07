@@ -282,10 +282,12 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
         ids,
         limits.BATCH_CONCURRENCY,
         async (id) => {
+          // A case that failed or was canceled keeps its selection, so only the stage it lacks runs again.
           const before = stateRef.current.cases.find((c) => c.id === id);
           if (!before?.selection) await analyze(id);
           const after = stateRef.current.cases.find((c) => c.id === id);
-          if (after?.selection && after.state === "ready-to-generate" && !batchCanceled.current) await generate(id);
+          const generable = after?.state === "ready-to-generate" || after?.state === "error" || after?.state === "canceled";
+          if (after?.selection && generable && !batchCanceled.current) await generate(id);
         },
         () => batchCanceled.current,
       );

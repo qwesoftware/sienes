@@ -16,8 +16,9 @@ export function jsonError(status: number, message: string) {
 }
 
 // Wraps a route handler: known errors become JSON with their status, Zod
-// failures become 400, anything else is logged without its body and answered
-// with a generic 500 so no clinical or personal content leaks into a response.
+// failures become 400, anything else is logged by name only (a database error
+// message carries the query parameters, i.e. draft text) and answered with a
+// generic 500 so no clinical or personal content leaks into a response or log.
 export function handle<Ctx>(fn: (request: Request, ctx: Ctx) => Promise<Response>) {
   return async (request: Request, ctx: Ctx): Promise<Response> => {
     try {
@@ -28,7 +29,7 @@ export function handle<Ctx>(fn: (request: Request, ctx: Ctx) => Promise<Response
       const status = typeof err === "object" && err && "status" in err ? err.status : undefined;
       if (status === 401 || status === "UNAUTHORIZED") return jsonError(401, "Sesión no válida");
       if (status === 403 || status === "FORBIDDEN") return jsonError(403, "Sin permiso");
-      console.error("unhandled", err instanceof Error ? `${err.name}: ${err.message}` : "error");
+      console.error("unhandled", err instanceof Error ? err.name : "error");
       return jsonError(500, "Error interno");
     }
   };

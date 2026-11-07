@@ -64,11 +64,26 @@ describe("feedback storage", () => {
     expect(edit).toMatchObject({ fieldKey: "reason", change: "modification", reason: "wording", promptVersion: "core@2026-11-06.1" });
   });
 
-  it("replaces the corrected text and ratings when the same case is confirmed again", async () => {
-    const again = { ...body, revision: 4, ratings: { reason: 2 }, edits: [] };
+  it("replaces the drafts, versions, ratings and edit events when the same case is confirmed again after a regeneration", async () => {
+    const regenerated = { ...draft, diagnosis: { ...draft.diagnosis, text: "Enfermedad de Parkinson" } };
+    const again = {
+      ...body,
+      revision: 4,
+      insurer: "osde",
+      versions: { model: "mock-2", modules: { core: "2026-11-06.2" } },
+      generatedDraft: regenerated,
+      correctedDraft: regenerated,
+      ratings: { reason: 2 },
+      edits: [],
+    };
     expect((await feedback(post("/api/feedback", again, await cookie()), {})).status).toBe(200);
     const [row] = await db.select().from(rhcCase).where(eq(rhcCase.id, caseToken));
     expect(row.revision).toBe(4);
+    expect(row.generatedDraft).toEqual(regenerated);
+    expect(row.correctedDraft).toEqual(regenerated);
+    expect(row.insurer).toBe("osde");
+    expect(row.modelId).toBe("mock-2");
+    expect(row.moduleVersions).toEqual({ core: "2026-11-06.2" });
     expect(await db.select().from(rating).where(eq(rating.caseId, caseToken))).toEqual([expect.objectContaining({ fieldKey: "reason", value: 2 })]);
     expect(await db.select().from(editEvent).where(eq(editEvent.caseId, caseToken))).toHaveLength(0);
   });

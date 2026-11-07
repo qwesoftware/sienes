@@ -3,15 +3,16 @@
 // only, so the output may be read freely.
 import { readFileSync } from "node:fs";
 import { config } from "dotenv";
-import { modelSetup } from "@/ai/model";
-import { costUsd, runCase } from "@/ai/run-case";
 import { draftSchema } from "@/contracts/draft";
 import { parseMedexis } from "@/parser/medexis";
 import { extractPagesNode } from "@/parser/pdf-node";
 
+// Limits are read at module load, so the env file must be loaded before the AI modules.
 config({ path: ".env.dev" });
 
 async function main() {
+  const { modelSetup } = await import("@/ai/model");
+  const { costUsd, runCase } = await import("@/ai/run-case");
   const file = process.argv[2] ?? "fixtures/exports/caso-a-renovacion-osde.pdf";
   const insurer = (process.argv[3] ?? "osde") as "osde";
   const setup = modelSetup();

@@ -15,7 +15,9 @@ async function main() {
     return;
   }
   let failures = 0;
+  let index = 0;
   for (const file of files) {
+    index++;
     const started = Date.now();
     try {
       const pages = await extractPagesNode(new Uint8Array(readFileSync(join(dir, file))));
@@ -28,14 +30,14 @@ async function main() {
       for (const n of parsed.notes) labels.set(n.authorSpecialtyLabel ?? "(none)", (labels.get(n.authorSpecialtyLabel ?? "(none)") ?? 0) + 1);
       const unresolved = parsed.notes.filter((n) => n.authorSpecialtyLabel && !n.authorSpecialtyKey).map((n) => n.authorSpecialtyLabel);
       console.log(
-        `${file.replace(/[^.]+(?=\.pdf$)/, (s) => s.slice(0, 3) + "…")}: pages=${parsed.pageCount} imageOnly=${parsed.imageOnlyPages.length} notes=${parsed.notes.length} ` +
+        `export ${index}: pages=${parsed.pageCount} imageOnly=${parsed.imageOnlyPages.length} notes=${parsed.notes.length} ` +
           `range=${parsed.dateRange ? `${parsed.dateRange.from}..${parsed.dateRange.to}` : "-"} header=[${present.join(",")}] ` +
           `labels=${JSON.stringify(Object.fromEntries(labels))} unresolved=${JSON.stringify([...new Set(unresolved)])} ` +
           `chars=${parsed.notes.reduce((a, n) => a + n.text.length, 0)} ${Date.now() - started}ms`,
       );
     } catch (err) {
       failures++;
-      console.log(`${file.slice(0, 3)}…: ERROR ${err instanceof ParseError ? err.code : err instanceof Error ? err.message : String(err)}`);
+      console.log(`export ${index}: ERROR ${err instanceof ParseError ? err.code : err instanceof Error ? err.message : String(err)}`);
     }
   }
   if (failures > 0) process.exit(1);

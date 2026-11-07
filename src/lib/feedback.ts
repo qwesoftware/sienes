@@ -6,8 +6,8 @@ import type { TechnicalEvent } from "@/contracts/telemetry";
 
 const RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
 
-// Upserts the case under its token: a second confirmation after edits
-// replaces the corrected text, ratings and edit events.
+// Upserts the case under its token: a second confirmation, after edits or a
+// regeneration, replaces both drafts, the versions, ratings and edit events.
 export async function storeFeedback(userId: string, input: Feedback): Promise<void> {
   const now = new Date();
   await db.transaction(async (tx) => {
@@ -28,7 +28,16 @@ export async function storeFeedback(userId: string, input: Feedback): Promise<vo
       })
       .onConflictDoUpdate({
         target: rhcCase.id,
-        set: { revision: input.revision, correctedDraft: input.correctedDraft, updatedAt: now },
+        set: {
+          reviewedBy: userId,
+          insurer: input.insurer,
+          revision: input.revision,
+          modelId: input.versions.model,
+          moduleVersions: input.versions.modules,
+          generatedDraft: input.generatedDraft,
+          correctedDraft: input.correctedDraft,
+          updatedAt: now,
+        },
       });
     await tx.delete(rating).where(eq(rating.caseId, input.caseToken));
     const ratings = Object.entries(input.ratings).map(([fieldKey, value]) => ({ caseId: input.caseToken, fieldKey, value }));
