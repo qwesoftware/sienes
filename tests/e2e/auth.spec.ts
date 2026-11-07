@@ -15,7 +15,7 @@ test("admin creates a user, the user must change the temporary password, and a d
   const email = `staff-${Date.now()}@e2e.test`;
 
   await signIn(page, e2eAdmin.email, e2eAdmin.password);
-  await expect(page.getByRole("heading", { name: "Casos" })).toBeVisible();
+  await expect(page.getByText("Sin casos")).toBeVisible();
 
   await page.getByRole("link", { name: "Usuarios" }).click();
   await page.getByRole("button", { name: "Nuevo usuario" }).click();
@@ -37,7 +37,7 @@ test("admin creates a user, the user must change the temporary password, and a d
   await staffPage.getByLabel("Contraseña nueva", { exact: true }).fill("staff-new-password-1");
   await staffPage.getByLabel("Repetir contraseña nueva").fill("staff-new-password-1");
   await staffPage.getByRole("button", { name: "Cambiar contraseña" }).click();
-  await expect(staffPage.getByRole("heading", { name: "Casos" })).toBeVisible();
+  await expect(staffPage.getByText("Sin casos")).toBeVisible();
   await expect(staffPage.getByRole("link", { name: "Usuarios" })).toHaveCount(0);
 
   // The admin disables the user; the user's next navigation ends at sign-in and sign-in is refused.

@@ -44,3 +44,5 @@ export const publicLimits = {
   CLINICAL_IDLE_WARNING_MS: limits.CLINICAL_IDLE_WARNING_MS,
   REQUEST_MAX_BYTES: limits.REQUEST_MAX_BYTES,
 } as const;
+
+export type PublicLimits = typeof publicLimits;

@@ -18,7 +18,8 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx --tsconfig tsconfig.json scripts/seed-admin.ts",
     "fixtures": "tsx --tsconfig tsconfig.json scripts/make-fixtures.ts",
-    "parse:real": "tsx --tsconfig tsconfig.json scripts/parse-real-exports.ts"
+    "parse:real": "tsx --tsconfig tsconfig.json scripts/parse-real-exports.ts",
+    "postinstall": "node -e \"require('fs').copyFileSync('node_modules/pdfjs-dist/build/pdf.worker.min.mjs','public/pdf.worker.min.mjs')\""
   },
   "dependencies": {
     "@ai-sdk/openai": "4.0.110",

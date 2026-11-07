@@ -60,6 +60,7 @@ export type ParsedExport = z.infer<typeof parsedExportSchema>;
 export const caseStateSchema = z.enum([
   "reading",
   "confirmation-required",
+  "ready-to-analyze",
   "analyzing",
   "ready-to-generate",
   "generating",

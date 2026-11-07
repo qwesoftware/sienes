@@ -25,3 +25,6 @@ next-env.d.ts
 /formularios-obras-sociales/
 /exports-medexis/
 /sienes/
+
+# copied from pdfjs-dist on install
+/public/pdf.worker.min.mjs
