@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import JSZip from "jszip";
 import { expect, test, type Page } from "@playwright/test";
 import { e2eAdmin } from "./global-setup";
 
@@ -137,4 +139,51 @@ test("a feedback storage failure shows a notice but never blocks copy or downloa
   await expect(page.getByRole("status").filter({ hasText: "No se pudo guardar el feedback" })).toBeVisible();
   await expect(page.getByTestId("section-reason").getByRole("button", { name: "Copiar" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Descargar Word" })).toBeVisible();
+});
+
+test("a batch processes three exports with one failure and the ZIP holds only the reviewed documents", async ({ page }) => {
+  // The infantojuvenil case fails at the select stage.
+  await page.route("**/api/select", async (route) => {
+    const body = route.request().postDataJSON() as { notes: { text: string }[] };
+    if (body.notes.some((n) => n.text.includes("psicopedagógica"))) {
+      await route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: "El proveedor de IA no respondió correctamente." }) });
+    } else {
+      await route.continue();
+    }
+  });
+  await signIn(page);
+  await page.getByLabel("Cargar PDF").setInputFiles([
+    "fixtures/exports/caso-a-renovacion-osde.pdf",
+    "fixtures/exports/caso-b-renovacion-pami.pdf",
+    "fixtures/exports/caso-c-infantojuvenil.pdf",
+  ]);
+  const items = page.getByRole("list", { name: "Casos cargados" }).getByRole("listitem");
+  await expect(items).toHaveCount(3);
+  for (const [index, insurer] of [["0", "OSDE"], ["1", "PAMI"], ["2", "Swiss Medical"]] as const) {
+    await items.nth(Number(index)).getByRole("button").click();
+    await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
+    await page.getByRole("combobox", { name: "Obra social destino" }).click();
+    await page.getByRole("option", { name: insurer }).click();
+    await page.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
+    await expect(page.getByTestId("case-state")).toHaveText("Listo para analizar");
+  }
+
+  await page.getByRole("button", { name: "Procesar pendientes (3)" }).click();
+  await expect(items.nth(0)).toContainText("Borrador");
+  await expect(items.nth(1)).toContainText("Borrador");
+  await expect(items.nth(2)).toContainText("Error");
+  await expect(page.getByRole("button", { name: "Procesar pendientes (1)" })).toBeVisible();
+
+  // Only the first case is reviewed; the second keeps an unreviewed draft, the third failed.
+  await items.nth(0).getByRole("button").click();
+  await page.getByRole("button", { name: "Revisé el contenido" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Revisado");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descargar ZIP (1 revisado)" }).click();
+  const download = await downloadPromise;
+  const zip = await JSZip.loadAsync(await readFile(await download.path()));
+  expect(Object.keys(zip.files).sort()).toEqual(["RHC-PEREYRA-MARTA-LUCIA.docx", "excluidos.txt"]);
+  const excluded = await zip.file("excluidos.txt")!.async("string");
+  expect(excluded).toContain("QUIROGA, HECTOR OSVALDO: borrador");
+  expect(excluded).toContain("ACOSTA, TOMAS: error");
 });

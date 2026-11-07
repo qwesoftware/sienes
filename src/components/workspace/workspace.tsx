@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { useWorkspace } from "@/case/store";
+import { BatchBar } from "./batch-bar";
 import { CaseDetail } from "./case-detail";
 import { CaseList } from "./case-list";
 import { SessionDialog } from "./session-dialog";
@@ -40,6 +41,7 @@ export function Workspace() {
         <aside className="flex flex-col gap-4">
           <UploadZone />
           <CaseList />
+          <BatchBar />
         </aside>
         <div>
           {selected ? (

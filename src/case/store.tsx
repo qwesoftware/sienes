@@ -9,6 +9,7 @@ import { parseMedexis, ParseError } from "@/parser/medexis";
 import { extractPagesBrowser } from "@/parser/pdf-browser";
 import type { PublicLimits } from "@/lib/limits";
 import { createIdleTimer, type IdleTimer } from "./idle-timer";
+import { runQueue } from "./queue";
 import { initialWorkspace, workspaceReducer, type WorkspaceAction } from "./reducer";
 import type { CaseRecord, WorkspaceState } from "./types";
 
@@ -30,7 +31,16 @@ type WorkspaceContextValue = {
   cancelAttempt: (caseId: string) => void;
   confirmReview: (caseId: string) => Promise<void>;
   sendFeedback: (caseId: string) => Promise<void>;
+  // Batch: analyze and generate every confirmed case that is not done yet,
+  // using the proposed sources; failed cases can be retried the same way.
+  batchRunning: boolean;
+  runBatch: () => Promise<void>;
+  cancelBatch: () => void;
 };
+
+export function batchCandidates(cases: CaseRecord[]): CaseRecord[] {
+  return cases.filter((c) => c.headerConfirmed && c.parsed && (c.state === "ready-to-analyze" || c.state === "ready-to-generate" || c.state === "error" || c.state === "canceled"));
+}
 
 // Header fields and file names are not part of the feedback body (ADR-0003).
 export function feedbackOf(record: Pick<CaseRecord, "id" | "insurer" | "revision" | "versions" | "generatedDraft" | "draft" | "ratings" | "edits">): Feedback | null {
@@ -64,14 +74,20 @@ function randomId(): string {
 }
 
 export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(workspaceReducer, initialWorkspace);
+  const [state, rawDispatch] = useReducer(workspaceReducer, initialWorkspace);
   const [notice, setNotice] = useState<SessionNotice>(null);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const batchCanceled = useRef(false);
   const timer = useRef<IdleTimer | null>(null);
   const inFlight = useRef(0);
+  // A synchronous mirror of the state so async flows (batch, late responses)
+  // read the result of a dispatch without waiting for a render. The reducer
+  // is pure, so applying each action twice yields the same state.
   const stateRef = useRef(state);
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+  const dispatch = useCallback((action: WorkspaceAction) => {
+    stateRef.current = workspaceReducer(stateRef.current, action);
+    rawDispatch(action);
+  }, []);
   const controllers = useRef(new Map<string, AbortController>());
   const hasCases = state.cases.length > 0;
 
@@ -96,7 +112,7 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
       window.clearInterval(interval);
       t.stop();
     };
-  }, [limits.CLINICAL_IDLE_TIMEOUT_MS, limits.CLINICAL_IDLE_WARNING_MS]);
+  }, [dispatch, limits.CLINICAL_IDLE_TIMEOUT_MS, limits.CLINICAL_IDLE_WARNING_MS]);
 
   useEffect(() => {
     if (!hasCases) return;
@@ -127,14 +143,14 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
         }
       }
     },
-    [limits.BATCH_MAX_PATIENTS, limits.PDF_MAX_BYTES, limits.PDF_MAX_PAGES, state.cases.length],
+    [dispatch, limits.BATCH_MAX_PATIENTS, limits.PDF_MAX_BYTES, limits.PDF_MAX_PAGES, state.cases.length],
   );
 
   const endSession = useCallback(() => {
     dispatch({ type: "clear-all" });
     setNotice(null);
     timer.current?.touch();
-  }, []);
+  }, [dispatch]);
 
   const continueWorking = useCallback(() => {
     timer.current?.touch();
@@ -181,7 +197,7 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
         if (controllers.current.get(caseId) === controller) controllers.current.delete(caseId);
       }
     },
-    [beginClinicalCall],
+    [beginClinicalCall, dispatch],
   );
 
   // Generate run: only the notes the confirmed selection uses travel.
@@ -214,14 +230,17 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
         if (controllers.current.get(caseId) === controller) controllers.current.delete(caseId);
       }
     },
-    [beginClinicalCall],
+    [beginClinicalCall, dispatch],
   );
 
-  const cancelAttempt = useCallback((caseId: string) => {
-    controllers.current.get(caseId)?.abort();
-    controllers.current.delete(caseId);
-    dispatch({ type: "cancel-attempt", caseId });
-  }, []);
+  const cancelAttempt = useCallback(
+    (caseId: string) => {
+      controllers.current.get(caseId)?.abort();
+      controllers.current.delete(caseId);
+      dispatch({ type: "cancel-attempt", caseId });
+    },
+    [dispatch],
+  );
 
   // Feedback storage never blocks the review: a failure only shows a notice.
   const sendFeedback = useCallback(async (caseId: string) => {
@@ -235,19 +254,46 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
     } catch {
       dispatch({ type: "feedback-status", caseId, status: "failed" });
     }
-  }, []);
+  }, [dispatch]);
 
   const confirmReview = useCallback(
     async (caseId: string) => {
       dispatch({ type: "confirm-review", caseId });
-      await sendFeedback(caseId); // confirmation changes no field the body carries
+      await sendFeedback(caseId);
     },
-    [sendFeedback],
+    [dispatch, sendFeedback],
   );
 
+  const runBatch = useCallback(async () => {
+    const ids = batchCandidates(stateRef.current.cases).map((c) => c.id);
+    if (ids.length === 0) return;
+    batchCanceled.current = false;
+    setBatchRunning(true);
+    try {
+      await runQueue(
+        ids,
+        limits.BATCH_CONCURRENCY,
+        async (id) => {
+          const before = stateRef.current.cases.find((c) => c.id === id);
+          if (!before?.selection) await analyze(id);
+          const after = stateRef.current.cases.find((c) => c.id === id);
+          if (after?.selection && after.state === "ready-to-generate" && !batchCanceled.current) await generate(id);
+        },
+        () => batchCanceled.current,
+      );
+    } finally {
+      setBatchRunning(false);
+    }
+  }, [analyze, generate, limits.BATCH_CONCURRENCY]);
+
+  const cancelBatch = useCallback(() => {
+    batchCanceled.current = true;
+    for (const id of [...controllers.current.keys()]) cancelAttempt(id);
+  }, [cancelAttempt]);
+
   const value = useMemo<WorkspaceContextValue>(
-    () => ({ state, dispatch, limits, addFiles, endSession, notice, continueWorking, dismissNotice: () => setNotice(null), beginClinicalCall, analyze, generate, cancelAttempt, confirmReview, sendFeedback }),
-    [state, limits, addFiles, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, confirmReview, sendFeedback],
+    () => ({ state, dispatch, limits, addFiles, endSession, notice, continueWorking, dismissNotice: () => setNotice(null), beginClinicalCall, analyze, generate, cancelAttempt, confirmReview, sendFeedback, batchRunning, runBatch, cancelBatch }),
+    [state, dispatch, limits, addFiles, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, confirmReview, sendFeedback, batchRunning, runBatch, cancelBatch],
   );
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
