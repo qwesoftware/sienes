@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted (authentication superseded by [ADR-0004](0004-self-hosted-better-auth.md))
 ---
 
 # Application stack: Next.js on Vercel, Neon Postgres with Drizzle, Neon Auth

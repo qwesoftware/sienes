@@ -1,6 +1,6 @@
 # Sienes RHC assistant
 
-Draft clinical history summaries (RHC) from Medexis PDF exports, reviewed by Sienes staff. Specification stage; no application code yet.
+Draft clinical history summaries (RHC) from Medexis PDF exports, reviewed by Sienes staff. Build plan in `docs/specs/app-v1-build.md`; the app lives at the repository root.
 
 ## Read first
 
@@ -12,7 +12,8 @@ Draft clinical history summaries (RHC) from Medexis PDF exports, reviewed by Sie
 
 - `documentos-cliente/`, `exports-medexis/`, `formularios-obras-sociales/` and `propuesta/` hold real patient and client material. They are git-ignored; keep them that way. Never copy their content into fixtures, tests, logs, prompts, issues, commits or chat.
 - Fixtures are synthetic. A real export may be read locally to shape a fixture; the fixture itself contains invented people.
-- Nothing clinical is persisted: no patient text in the database, logs, telemetry, caches or error messages.
+- No source material or identifier is persisted: no PDF, notes, header fields or file names in the database, logs, telemetry, caches or error messages. Drafts, corrected text and ratings are stored only pseudonymously (ADR-0003).
+- Real exports may be run through the app locally with the key in `.env.dev` within the agreed budget; their text and the drafts made from them never appear in chat, commits or fixtures.
 
 ## Accounts
 

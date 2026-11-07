@@ -4,7 +4,7 @@ Status: stack and AI layer decided on November 6, 2026 ([ADR-0001](adr/0001-ai-l
 
 ## Recommendation
 
-A Next.js application with TypeScript, React, Tailwind CSS, and shadcn/ui. Frontend and API in the same project, deployed on Vercel. PostgreSQL on Neon for users, sessions, technical auditing, and feedback without patient data. Drizzle for schema and migrations. Neon Auth with Managed Better Auth for authentication; the application limits administrative operations to creating and disabling users. It must prevent public signup on the server and revoke sessions when an account is disabled. Hiding the signup form is insufficient. Verify the configuration for closed signup and permissions in the integration before finalizing this choice.
+A Next.js application with TypeScript, React, Tailwind CSS, and shadcn/ui. Frontend and API in the same project, deployed on Vercel. PostgreSQL on Neon for users, sessions, technical auditing, and feedback without patient data. Drizzle for schema and migrations. Better Auth running inside the app for authentication ([ADR-0004](adr/0004-self-hosted-better-auth.md)); the application limits administrative operations to creating, disabling and resetting users. Public signup is rejected on the server and sessions are revoked when an account is disabled. Locally the database is Postgres in Docker.
 
 This choice avoids a separate Python backend for a workflow of approximately 800 cases per month and keeps shared data contracts across the interface, parser, and server. Compatible stable versions and a lockfile will be pinned when implementation begins, without relying on the latest tag in production.
 
@@ -15,8 +15,8 @@ This choice avoids a separate Python backend for a workflow of approximately 800
 | PDF reading | PDF.js, distributed as pdfjs-dist, in a browser worker | Extract text and positions, reconstruct headers and notes, and maintain page references. |
 | Validation | Zod | Source and result schemas; mandatory validation on the server as well. |
 | AI | Vercel AI SDK agent loop (`ToolLoopAgent`) with provider packages, decided in [ADR-0001](adr/0001-ai-layer-agent-loop.md); OpenAI API as preferred candidate subject to validation; GPT-6 Luna as the first model candidate | Structured synthesis with in-process, read-only tools and app-selected prompt modules; no external tools, no gateway, no sessions. The concrete model is selected through evaluation and is not fixed by this proposal. |
-| Permitted persistence | PostgreSQL on Neon and Drizzle | Users/profiles, technical events, categorized feedback, and versions. Pseudonymous RHC drafts, corrected text and ratings (ADR-0003); no patient identifiers, documents or notes. |
-| Authentication | Neon Auth, Next.js integration | Identity and sessions, with application authorization at every endpoint. |
+| Permitted persistence | PostgreSQL (Docker locally, Neon in production) and Drizzle | Users/profiles, technical events, categorized feedback, and versions. Pseudonymous RHC drafts, corrected text and ratings (ADR-0003); no patient identifiers, documents or notes. |
+| Authentication | Better Auth in the app, Admin plugin, Drizzle adapter | Identity, sessions and user administration, with application authorization at every endpoint. |
 | Downloads | docx and JSZip in the browser | Word per patient and batch ZIP, without saving files on the server. |
 | Testing | Vitest and Playwright | Parser, rules, contracts, authorization, review, downloads, batches, and storage controls. |
 | Hosting | Vercel, function region `gru1` (São Paulo) | Web and endpoints; explicit no-cache configuration and logs without clinical bodies. |
@@ -73,7 +73,7 @@ This recommendation does not validate the service budget. Measure input/output t
 
 - Next.js Route Handlers: https://nextjs.org/docs/app/getting-started/route-handlers
 - PDF.js API and text extraction: https://mozilla.github.io/pdf.js/api/draft/api.js.html
-- Neon Auth Admin: https://neon.com/docs/auth/guides/plugins/admin
+- Better Auth Admin plugin: https://www.better-auth.com/docs/plugins/admin
 - Vercel Functions and limits: https://vercel.com/docs/functions/limitations
 - Word generation with JavaScript: https://docx.js.org/
 - OpenAI data controls: https://developers.openai.com/api/docs/guides/your-data

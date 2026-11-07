@@ -6,3 +6,6 @@
 /formularios-obras-sociales/
 /exports-medexis/
 
+
+# Playwright MCP screenshots and snapshots
+.playwright-mcp/
