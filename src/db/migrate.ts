@@ -5,10 +5,22 @@ import { Pool } from "pg";
 
 config({ path: process.env.ENV_FILE ?? ".env.dev" });
 
-const url = process.env.DATABASE_URL;
-if (!url) throw new Error("DATABASE_URL is not set");
+export async function runMigrations(url = process.env.DATABASE_URL): Promise<void> {
+  if (!url) throw new Error("DATABASE_URL is not set");
+  const pool = new Pool({ connectionString: url });
+  try {
+    await migrate(drizzle({ client: pool }), { migrationsFolder: "./drizzle" });
+  } finally {
+    await pool.end();
+  }
+}
 
-const pool = new Pool({ connectionString: url });
-await migrate(drizzle({ client: pool }), { migrationsFolder: "./drizzle" });
-await pool.end();
-console.log("migrations applied");
+if (process.argv[1]?.endsWith("migrate.ts")) {
+  runMigrations().then(
+    () => console.log("migrations applied"),
+    (err) => {
+      console.error(err);
+      process.exit(1);
+    },
+  );
+}

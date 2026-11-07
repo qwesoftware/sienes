@@ -1,0 +1,95 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { apiFetch } from "@/lib/client-api";
+
+export function ChangePasswordForm({ forced }: { forced: boolean }) {
+  const router = useRouter();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  const mismatch = confirm.length > 0 && confirm !== newPassword;
+  const tooShort = newPassword.length > 0 && newPassword.length < 10;
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (mismatch || tooShort) return;
+    setPending(true);
+    setError(null);
+    try {
+      await apiFetch("/api/account/password", { method: "POST", json: { currentPassword, newPassword } });
+      router.replace("/");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo cambiar la contraseña");
+      setPending(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="flex flex-col gap-6" noValidate>
+      {forced ? (
+        <Alert>
+          <AlertDescription>Antes de continuar, elegí una contraseña nueva.</AlertDescription>
+        </Alert>
+      ) : null}
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="current">Contraseña actual</FieldLabel>
+          <Input
+            id="current"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+        </Field>
+        <Field data-invalid={tooShort || undefined}>
+          <FieldLabel htmlFor="new">Contraseña nueva</FieldLabel>
+          <Input
+            id="new"
+            type="password"
+            autoComplete="new-password"
+            required
+            aria-invalid={tooShort || undefined}
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+          <FieldDescription>Al menos 10 caracteres.</FieldDescription>
+        </Field>
+        <Field data-invalid={mismatch || undefined}>
+          <FieldLabel htmlFor="confirm">Repetir contraseña nueva</FieldLabel>
+          <Input
+            id="confirm"
+            type="password"
+            autoComplete="new-password"
+            required
+            aria-invalid={mismatch || undefined}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+          {mismatch ? <FieldDescription>Las contraseñas no coinciden.</FieldDescription> : null}
+        </Field>
+      </FieldGroup>
+      {error ? (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      <Button type="submit" disabled={pending || !currentPassword || !newPassword || mismatch || tooShort}>
+        {pending ? <Spinner data-icon="inline-start" /> : null}
+        Cambiar contraseña
+      </Button>
+    </form>
+  );
+}

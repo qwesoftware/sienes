@@ -17,7 +17,9 @@ Draft clinical history summaries (RHC) from Medexis PDF exports, reviewed by Sie
 
 ## Run and verify
 
-- `pnpm db:up` starts Postgres in Docker; `pnpm db:migrate` applies `drizzle/`; `pnpm dev` serves on port 3000 reading `.env.dev`.
+- `pnpm db:up` starts Postgres in Docker; `pnpm db:migrate` applies `drizzle/`; `pnpm db:seed` creates the first admin from `ADMIN_*` env vars; `pnpm dev` serves on port 3000 reading `.env.dev`.
+- Vitest integration tests use the `sienes_test` database (created and migrated by the global setup); Playwright seeds `admin@e2e.test` into the dev database.
+- Auth: Better Auth in `src/lib/auth.ts`; route handlers get the session through `requireUser`/`requireAdmin` (`src/lib/session.ts`) and wrap with `handle` (`src/lib/http.ts`). Admin operations live in `src/lib/users.ts`.
 - `pnpm verify` is the definition of done for a slice: typecheck, lint, Vitest (unit and integration against Docker Postgres) and Playwright (`tests/e2e`, mock model, port 3100).
 - Hooks: `pre-commit install` once; commit runs eslint and tsc, push runs Vitest. Commits follow Conventional Commits.
 - UI is shadcn/ui on Base UI (`src/components/ui`, generated, not hand-edited); theme tokens live in `src/app/globals.css`.

@@ -1,6 +1,6 @@
 import { config } from "dotenv";
-import path from "node:path";
 import { defineConfig } from "vitest/config";
+import { testDatabaseUrl } from "./tests/setup/test-db";
 
 config({ path: ".env.dev" });
 
@@ -10,5 +10,12 @@ export default defineConfig({
     include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
     environment: "node",
     testTimeout: 20_000,
+    globalSetup: ["tests/setup/vitest-global.ts"],
+    env: {
+      DATABASE_URL: testDatabaseUrl(process.env.DATABASE_URL!),
+      AI_PROVIDER: "mock",
+    },
+    // One worker: the integration tests share the database.
+    fileParallelism: false,
   },
 });

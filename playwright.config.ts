@@ -7,6 +7,7 @@ const port = 3100;
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.ts",
   fullyParallel: false,
   retries: 0,
   reporter: [["list"]],
@@ -21,6 +22,6 @@ export default defineConfig({
     url: `http://localhost:${port}`,
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { AI_PROVIDER: "mock" },
+    env: { AI_PROVIDER: "mock", BETTER_AUTH_URL: `http://localhost:${port}` },
   },
 });

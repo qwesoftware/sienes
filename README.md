@@ -19,6 +19,7 @@ pnpm install
 cp .env.example .env.dev      # then set OPENAI_API_KEY if AI_PROVIDER=openai
 pnpm db:up                    # Postgres 17 in Docker
 pnpm db:migrate
+ADMIN_EMAIL=you@example.com ADMIN_NAME="Your Name" ADMIN_PASSWORD='at least 10 chars' pnpm db:seed   # first administrator
 pnpm dev                      # http://localhost:3000
 pre-commit install            # once per clone
 ```
