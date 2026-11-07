@@ -28,3 +28,6 @@ next-env.d.ts
 
 # copied from pdfjs-dist on install
 /public/pdf.worker.min.mjs
+
+# Impeccable engine binary (installed by npx impeccable install)
+.claude/skills/impeccable/scripts/bin/
