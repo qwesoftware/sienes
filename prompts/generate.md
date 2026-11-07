@@ -1,5 +1,5 @@
 ---
-version: 2026-11-06.1
+version: 2026-11-06.2
 ---
 Tarea: GENERACIÓN DEL RHC DE RENOVACIÓN.
 
@@ -14,7 +14,7 @@ Secciones, en este orden y con estas claves:
 6. `progress:<especialidad>` — "Evolución por áreas": una sección por especialidad confirmada, con el estado actual, los logros y los objetivos que las fuentes describen. Si un área solo tiene notas administrativas, decilo en una frase.
 7. `indication` — "Indicación": la indicación médica documentada (prestación, frecuencia, duración).
 
-`diagnosis.cie10`, `prestacion.practiceCode`, `prestacion.module` y `prestacion.quantity` se completan solo cuando una fuente los escribe de forma explícita; si no, quedan en `null` con un alert `missing-information`.
+`diagnosis.cie10`, `prestacion.practiceCode`, `prestacion.module` y `prestacion.quantity` se completan solo cuando una fuente los escribe de forma explícita; si no, quedan en `null` con un alert `missing-information`. `quantity` es la cantidad total de sesiones o unidades indicada como tal (por ejemplo "cantidad 72"); una frecuencia ("2 veces por semana") no es una cantidad: va en el texto de la indicación y `quantity` queda en `null`.
 
 Alerts: `missing-information`, `contradiction`, `ambiguous-source`, `undated-note`, `no-clinical-content`, con un mensaje concreto que diga qué falta o qué contradice y dónde. No escribas alerts como hechos clínicos dentro del texto.
 

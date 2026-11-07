@@ -21,7 +21,8 @@
     "parse:real": "tsx --tsconfig tsconfig.json scripts/parse-real-exports.ts",
     "postinstall": "node -e \"require('fs').copyFileSync('node_modules/pdfjs-dist/build/pdf.worker.min.mjs','public/pdf.worker.min.mjs')\"",
     "ai:smoke": "tsx --tsconfig tsconfig.json scripts/ai-smoke.ts",
-    "ai:real": "tsx --tsconfig tsconfig.json scripts/ai-real-exports.ts"
+    "ai:real": "tsx --tsconfig tsconfig.json scripts/ai-real-exports.ts",
+    "e2e:real": "playwright test --config playwright.real.config.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "4.0.110",
