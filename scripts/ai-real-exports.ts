@@ -1,4 +1,5 @@
-// Local evaluation on the real exports: runs both stages per file with the
+// Local evaluation on the real exports (PDF, or JSON note exports saved as
+// .txt, which carry no header): runs both stages per file with the
 // configured model and prints per-case counts, tokens, latency and cost,
 // stopping when the budget is reached. With --drafts it also prints the
 // generated drafts (allowed only in the owner's local environment during the
@@ -9,6 +10,7 @@ import { config } from "dotenv";
 import type { Insurer } from "@/contracts/case";
 import { parseMedexis } from "@/parser/medexis";
 import { extractPagesNode } from "@/parser/pdf-node";
+import { parseMedexisJson } from "./medexis-json";
 
 // Limits are read at module load, so the env file must be loaded before the AI modules.
 config({ path: ".env.dev" });
@@ -32,7 +34,11 @@ async function main() {
   const { modelSetup } = await import("@/ai/model");
   const { costUsd, runCase } = await import("@/ai/run-case");
   const setup = modelSetup();
-  const files = readdirSync(dir).filter((f) => f.toLowerCase().endsWith(".pdf")).slice(0, limit);
+  // PDF exports go through the parser; JSON note exports (".txt") through the local adapter.
+  const files = readdirSync(dir)
+    .filter((f) => /\.(pdf|txt)$/i.test(f))
+    .sort()
+    .slice(0, limit);
   let spent = 0;
   let index = 0;
   for (const file of files) {
@@ -41,7 +47,9 @@ async function main() {
       console.log(`budget of ${budget} USD reached; stopping before case ${index}`);
       break;
     }
-    const parsed = parseMedexis(await extractPagesNode(new Uint8Array(readFileSync(join(dir, file)))));
+    const parsed = file.toLowerCase().endsWith(".pdf")
+      ? parseMedexis(await extractPagesNode(new Uint8Array(readFileSync(join(dir, file)))))
+      : parseMedexisJson(readFileSync(join(dir, file), "utf8"));
     const insurer = insurerOf(parsed.header.coverageCode.value);
     try {
       const result = await runCase(parsed, insurer, setup);
