@@ -18,7 +18,7 @@ const NO_REASON = "__none__";
 const reasonItems: Record<string, string> = { [NO_REASON]: "Sin motivo", ...editReasonLabels };
 
 export function DraftEditor({ record }: { record: CaseRecord }) {
-  const { dispatch, sendFeedback } = useWorkspace();
+  const { dispatch } = useWorkspace();
   const draft = record.draft;
   if (!draft) return null;
   const reviewed = record.reviewedRevision === record.revision;
@@ -46,12 +46,6 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
     ) : null;
   };
 
-  // Ratings and edit reasons do not invalidate a review, so once it is
-  // confirmed every change is sent again to keep the stored feedback current.
-  const syncIfReviewed = () => {
-    if (record.reviewedRevision === record.revision) void sendFeedback(record.id);
-  };
-
   const reasonSelect = (fieldKey: string) => {
     const e = edit(fieldKey);
     if (!e) return null;
@@ -63,7 +57,6 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
           items={reasonItems}
           onValueChange={(v) => {
             dispatch({ type: "set-edit-reason", caseId: record.id, fieldKey, reason: v === NO_REASON || !v ? null : (v as NonNullable<typeof e.reason>) });
-            syncIfReviewed();
           }}
         >
           <SelectTrigger size="sm" aria-label={`Motivo de la edición de ${fieldKey}`}>
@@ -83,7 +76,7 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
     );
   };
 
-  // Optional 1–5 rating per section; sent with the feedback once the review is confirmed.
+  // Optional 1–5 rating per section; the store sends it once the review is confirmed.
   const ratingGroup = (fieldKey: string) => (
     <ToggleGroup
       value={record.ratings[fieldKey] ? [String(record.ratings[fieldKey])] : []}
@@ -94,7 +87,6 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
         const value = Number(values[values.length - 1]);
         if (!value) return;
         dispatch({ type: "set-rating", caseId: record.id, fieldKey, value });
-        syncIfReviewed();
       }}
     >
       {[1, 2, 3, 4, 5].map((n) => (

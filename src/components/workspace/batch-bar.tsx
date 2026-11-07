@@ -2,7 +2,8 @@
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { batchCandidates, useWorkspace } from "@/case/store";
+import { batchCandidates } from "@/case/runner";
+import { useWorkspace } from "@/case/store";
 import { rhcZip, zipPartition } from "@/word/rhc-zip";
 
 // Batch controls: process every confirmed case with the proposed sources,

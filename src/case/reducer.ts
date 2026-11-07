@@ -7,7 +7,7 @@ import { newCase, type CaseRecord, type FieldEdit, type WorkspaceState } from ".
 export type DraftField = "diagnosis.text" | "diagnosis.cie10" | "prestacion.practiceCode" | "prestacion.module" | "prestacion.quantity";
 
 export type WorkspaceAction =
-  | { type: "add-cases"; cases: { id: string; fileName: string }[] }
+  | { type: "add-cases"; cases: { id: string; fileName: string }[]; max: number }
   | { type: "parsed"; caseId: string; parsed: ParsedExport }
   | { type: "parse-failed"; caseId: string; message: string }
   | { type: "edit-header"; caseId: string; field: keyof Omit<Header, "cud">; value: string }
@@ -50,6 +50,12 @@ function editOf(generated: string, current: string, previous: FieldEdit | undefi
   if (current === generated) return null;
   const change = generated === "" ? "addition" : current === "" ? "deletion" : "modification";
   return { change, reason: previous?.reason ?? null };
+}
+
+// Ratings and edit reasons do not invalidate a review, so once it is
+// confirmed any change leaves the stored feedback stale until re-sent.
+function feedbackChanged(c: CaseRecord): CaseRecord["feedbackStatus"] {
+  return c.reviewedRevision === c.revision ? "stale" : c.feedbackStatus;
 }
 
 function withEdit(c: CaseRecord, fieldKey: string, edit: FieldEdit | null): CaseRecord["edits"] {
@@ -100,7 +106,9 @@ function settled(c: CaseRecord): CaseRecord["state"] {
 export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
   switch (action.type) {
     case "add-cases": {
-      const cases = [...state.cases, ...action.cases.map((c) => newCase(c.id, c.fileName))];
+      // The batch cap is enforced here, so two quick drops cannot exceed it.
+      const room = Math.max(0, action.max - state.cases.length);
+      const cases = [...state.cases, ...action.cases.slice(0, room).map((c) => newCase(c.id, c.fileName))];
       return { cases, selectedCaseId: state.selectedCaseId ?? cases[0]?.id ?? null };
     }
     case "parsed":
@@ -192,14 +200,17 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
     case "set-edit-reason":
       return update(state, action.caseId, (c) => {
         const edit = c.edits[action.fieldKey];
-        return edit ? { ...c, edits: { ...c.edits, [action.fieldKey]: { ...edit, reason: action.reason } } } : c;
+        return edit ? { ...c, edits: { ...c.edits, [action.fieldKey]: { ...edit, reason: action.reason } }, feedbackStatus: feedbackChanged(c) } : c;
       });
     case "confirm-review":
-      return update(state, action.caseId, (c) => (c.draft ? { ...c, reviewedRevision: c.revision, state: "reviewed" } : c));
+      return update(state, action.caseId, (c) => (c.draft ? { ...c, reviewedRevision: c.revision, state: "reviewed", feedbackStatus: "stale" } : c));
     case "set-rating":
-      return update(state, action.caseId, (c) => ({ ...c, ratings: { ...c.ratings, [action.fieldKey]: action.value } }));
+      return update(state, action.caseId, (c) => ({ ...c, ratings: { ...c.ratings, [action.fieldKey]: action.value }, feedbackStatus: feedbackChanged(c) }));
     case "feedback-status":
-      return update(state, action.caseId, (c) => ({ ...c, feedbackStatus: action.status }));
+      // A send result lands only on the send it belongs to; a change made meanwhile stays stale.
+      return update(state, action.caseId, (c) =>
+        (action.status === "saved" || action.status === "failed") && c.feedbackStatus !== "sending" ? c : { ...c, feedbackStatus: action.status },
+      );
     case "select-case":
       return { ...state, selectedCaseId: action.caseId };
     case "remove-case": {

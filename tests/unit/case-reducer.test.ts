@@ -26,7 +26,7 @@ function run(actions: WorkspaceAction[]) {
 describe("workspace reducer", () => {
   it("moves a parsed case to confirmation, then to ready once insurer and name are set", () => {
     const state = run([
-      { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }] },
+      { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }], max: 20 },
       { type: "parsed", caseId: "c1", parsed },
       { type: "confirm-header", caseId: "c1" }, // no insurer yet: ignored
     ]);
@@ -36,7 +36,7 @@ describe("workspace reducer", () => {
   });
 
   it("marks edited fields as corrected, restores extracted when the original value returns, and advances the revision", () => {
-    const base = run([{ type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }] }, { type: "parsed", caseId: "c1", parsed }]);
+    const base = run([{ type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }], max: 20 }, { type: "parsed", caseId: "c1", parsed }]);
     const edited = workspaceReducer(base, { type: "edit-header", caseId: "c1", field: "memberNumber", value: "999" });
     expect(edited.cases[0].header?.memberNumber).toEqual({ value: "999", status: "corrected" });
     expect(edited.cases[0].revision).toBe(2);
@@ -48,7 +48,7 @@ describe("workspace reducer", () => {
 
   it("reopens a confirmed header on any administrative change", () => {
     const state = run([
-      { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }] },
+      { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }], max: 20 },
       { type: "parsed", caseId: "c1", parsed },
       { type: "set-insurer", caseId: "c1", insurer: "pami" },
       { type: "confirm-header", caseId: "c1" },
@@ -59,7 +59,7 @@ describe("workspace reducer", () => {
 
   it("keeps a failed file separate and selects the next case when it is removed", () => {
     const state = run([
-      { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }, { id: "c2", fileName: "b.pdf" }] },
+      { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }, { id: "c2", fileName: "b.pdf" }] , max: 20 },
       { type: "parse-failed", caseId: "c1", message: "sin texto" },
       { type: "parsed", caseId: "c2", parsed },
     ]);
@@ -73,7 +73,7 @@ describe("workspace reducer", () => {
 describe("select run in the reducer", () => {
   const selection = { specialties: [], diagnosisNoteIds: [], historyNoteIds: [], medicationNoteIds: [], excludedNoteIds: [] };
   const confirmed = run([
-    { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }] },
+    { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }], max: 20 },
     { type: "parsed", caseId: "c1", parsed },
     { type: "set-insurer", caseId: "c1", insurer: "osde" },
     { type: "confirm-header", caseId: "c1" },
@@ -118,7 +118,7 @@ describe("draft review in the reducer", () => {
     alerts: [],
   };
   const withDraft = run([
-    { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }] },
+    { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }], max: 20 },
     { type: "parsed", caseId: "c1", parsed },
     { type: "set-insurer", caseId: "c1", insurer: "osde" },
     { type: "confirm-header", caseId: "c1" },
@@ -163,5 +163,54 @@ describe("draft review in the reducer", () => {
     expect(late.cases[0].state).toBe("canceled");
     const sourcesChanged = workspaceReducer(withDraft, { type: "edit-selection", caseId: "c1", selection });
     expect(sourcesChanged.cases[0]).toMatchObject({ draft: null, generatedDraft: null, state: "ready-to-generate" });
+  });
+});
+
+describe("feedback sync state", () => {
+  const draft = {
+    sections: [{ key: "reason", title: "Motivo", text: "Renovación.", references: [] }],
+    diagnosis: { text: "Parkinson", cie10: "G20", references: [] },
+    prestacion: { practiceCode: "250101", module: null, quantity: 24, references: [] },
+    alerts: [],
+  };
+  const drafted: WorkspaceAction[] = [
+    { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }], max: 20 },
+    { type: "parsed", caseId: "c1", parsed },
+    { type: "set-insurer", caseId: "c1", insurer: "osde" },
+    { type: "confirm-header", caseId: "c1" },
+    { type: "analyze-started", caseId: "c1", attemptId: "a1" },
+    { type: "analyzed", caseId: "c1", attemptId: "a1", selection: { specialties: [], diagnosisNoteIds: [], historyNoteIds: [], medicationNoteIds: [], excludedNoteIds: [] } },
+    { type: "generate-started", caseId: "c1", attemptId: "a2" },
+    { type: "generated", caseId: "c1", attemptId: "a2", draft, versions: { model: "mock", modules: {} } },
+  ];
+  const status = (actions: WorkspaceAction[]) => run([...drafted, ...actions]).cases[0].feedbackStatus;
+
+  it("confirming the review marks the feedback stale so it gets sent", () => {
+    expect(status([{ type: "set-rating", caseId: "c1", fieldKey: "reason", value: 3 }])).toBe("idle");
+    expect(status([{ type: "confirm-review", caseId: "c1" }])).toBe("stale");
+  });
+
+  it("a rating or an edit reason after the review marks it stale again", () => {
+    const saved: WorkspaceAction[] = [{ type: "confirm-review", caseId: "c1" }, { type: "feedback-status", caseId: "c1", status: "sending" }, { type: "feedback-status", caseId: "c1", status: "saved" }];
+    expect(status(saved)).toBe("saved");
+    expect(status([...saved, { type: "set-rating", caseId: "c1", fieldKey: "reason", value: 5 }])).toBe("stale");
+    expect(status([...saved, { type: "edit-section", caseId: "c1", key: "reason", text: "x" }, { type: "set-edit-reason", caseId: "c1", fieldKey: "reason", reason: "wording" }])).toBe("saved");
+    expect(status([...saved, { type: "edit-section", caseId: "c1", key: "reason", text: "x" }, { type: "confirm-review", caseId: "c1" }, { type: "set-edit-reason", caseId: "c1", fieldKey: "reason", reason: "wording" }])).toBe("stale");
+  });
+
+  it("a change made while sending survives the send result", () => {
+    const sending: WorkspaceAction[] = [{ type: "confirm-review", caseId: "c1" }, { type: "feedback-status", caseId: "c1", status: "sending" }, { type: "set-rating", caseId: "c1", fieldKey: "reason", value: 2 }];
+    expect(status(sending)).toBe("stale");
+    expect(status([...sending, { type: "feedback-status", caseId: "c1", status: "saved" }])).toBe("stale");
+  });
+});
+
+describe("case cap", () => {
+  it("keeps at most the configured number of cases", () => {
+    const state = run([
+      { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }, { id: "c2", fileName: "b.pdf" }], max: 3 },
+      { type: "add-cases", cases: [{ id: "c3", fileName: "c.pdf" }, { id: "c4", fileName: "d.pdf" }], max: 3 },
+    ]);
+    expect(state.cases.map((c) => c.id)).toEqual(["c1", "c2", "c3"]);
   });
 });

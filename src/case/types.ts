@@ -24,7 +24,7 @@ export type CaseRecord = {
   generatedDraft: Draft | null; // as the model returned it, after validation
   edits: Record<string, FieldEdit>; // by section key or portal field name
   ratings: Record<string, number>; // 1..5 by section key or field name
-  feedbackStatus: "idle" | "sending" | "saved" | "failed";
+  feedbackStatus: "idle" | "stale" | "sending" | "saved" | "failed"; // stale: reviewed and changed since the last save
   versions: { model: string; modules: Record<string, string> } | null;
   reviewedRevision: number | null; // revision the reviewer confirmed
   error: string | null;

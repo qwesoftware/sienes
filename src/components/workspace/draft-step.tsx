@@ -23,7 +23,7 @@ import { MainAction } from "./main-action";
 
 // Step 3: generation, review confirmation bound to the revision, and downloads.
 export function DraftStep({ record }: { record: CaseRecord }) {
-  const { generate, cancelAttempt, confirmReview, sendFeedback } = useWorkspace();
+  const { dispatch, generate, cancelAttempt } = useWorkspace();
   if (!record.selection || !record.headerConfirmed) return null;
 
   if (record.state === "generating") {
@@ -67,12 +67,12 @@ export function DraftStep({ record }: { record: CaseRecord }) {
             {reviewed ? (
               <MainAction onClick={download}>Descargar Word</MainAction>
             ) : (
-              <MainAction onClick={() => confirmReview(record.id)}>Revisé el contenido</MainAction>
+              <MainAction onClick={() => dispatch({ type: "confirm-review", caseId: record.id })}>Revisé el contenido</MainAction>
             )}
             {record.feedbackStatus === "failed" ? (
               <span className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
                 No se pudo guardar el feedback. El borrador y la descarga siguen disponibles.
-                <Button variant="ghost" size="sm" onClick={() => sendFeedback(record.id)}>
+                <Button variant="ghost" size="sm" onClick={() => dispatch({ type: "feedback-status", caseId: record.id, status: "stale" })}>
                   Reintentar
                 </Button>
               </span>

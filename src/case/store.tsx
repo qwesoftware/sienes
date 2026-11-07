@@ -1,17 +1,16 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import type { GenerateRequest, GenerateResponse, SelectRequest, SelectResponse, SourceNote } from "@/contracts/ai";
-import type { Note } from "@/contracts/case";
-import type { Feedback } from "@/contracts/feedback";
-import { apiFetch, withRetry } from "@/lib/client-api";
+import type { GenerateResponse, SelectResponse } from "@/contracts/ai";
+import { apiFetch } from "@/lib/client-api";
 import { parseMedexis, ParseError } from "@/parser/medexis";
 import { extractPagesBrowser } from "@/parser/pdf-browser";
 import type { PublicLimits } from "@/lib/limits";
 import { createIdleTimer, type IdleTimer } from "./idle-timer";
 import { runQueue } from "./queue";
 import { initialWorkspace, workspaceReducer, type WorkspaceAction } from "./reducer";
-import type { CaseRecord, WorkspaceState } from "./types";
+import { batchCandidates, createRunner, type CaseRunner, type Transport } from "./runner";
+import type { WorkspaceState } from "./types";
 
 export type SessionNotice = { kind: "warning"; remainingMs: number } | { kind: "expired" } | null;
 
@@ -29,8 +28,6 @@ type WorkspaceContextValue = {
   analyze: (caseId: string) => Promise<void>;
   generate: (caseId: string) => Promise<void>;
   cancelAttempt: (caseId: string) => void;
-  confirmReview: (caseId: string) => Promise<void>;
-  sendFeedback: (caseId: string) => Promise<void>;
   // Batch: analyze and generate every confirmed case that is not done yet,
   // using the proposed sources; failed cases can be retried the same way.
   batchRunning: boolean;
@@ -38,28 +35,12 @@ type WorkspaceContextValue = {
   cancelBatch: () => void;
 };
 
-export function batchCandidates(cases: CaseRecord[]): CaseRecord[] {
-  return cases.filter((c) => c.headerConfirmed && c.parsed && (c.state === "ready-to-analyze" || c.state === "ready-to-generate" || c.state === "error" || c.state === "canceled"));
-}
-
-// Header fields and file names are not part of the feedback body (ADR-0003).
-export function feedbackOf(record: Pick<CaseRecord, "id" | "insurer" | "revision" | "versions" | "generatedDraft" | "draft" | "ratings" | "edits">): Feedback | null {
-  if (!record.insurer || !record.versions || !record.generatedDraft || !record.draft) return null;
-  return {
-    caseToken: record.id,
-    insurer: record.insurer,
-    revision: record.revision,
-    versions: record.versions,
-    generatedDraft: record.generatedDraft,
-    correctedDraft: record.draft,
-    ratings: record.ratings,
-    edits: Object.entries(record.edits).map(([fieldKey, e]) => ({ fieldKey, scope: "generated-content" as const, change: e.change, reason: e.reason })),
-  };
-}
-
-function toSource(n: Note): SourceNote {
-  return { id: n.id, recordedDate: n.recordedDate, authorName: n.authorName, authorSpecialtyLabel: n.authorSpecialtyLabel, text: n.text, pages: n.pages };
-}
+// The browser transport: the app's own JSON endpoints.
+const httpTransport: Transport = {
+  select: (body, signal) => apiFetch<SelectResponse>("/api/select", { method: "POST", json: body, signal }),
+  generate: (body, signal) => apiFetch<GenerateResponse>("/api/generate", { method: "POST", json: body, signal }),
+  feedback: (body) => apiFetch("/api/feedback", { method: "POST", json: body }),
+};
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
@@ -74,21 +55,12 @@ function randomId(): string {
 }
 
 export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; children: React.ReactNode }) {
-  const [state, rawDispatch] = useReducer(workspaceReducer, initialWorkspace);
+  const [state, dispatch] = useReducer(workspaceReducer, initialWorkspace);
   const [notice, setNotice] = useState<SessionNotice>(null);
   const [batchRunning, setBatchRunning] = useState(false);
   const batchCanceled = useRef(false);
   const timer = useRef<IdleTimer | null>(null);
   const inFlight = useRef(0);
-  // A synchronous mirror of the state so async flows (batch, late responses)
-  // read the result of a dispatch without waiting for a render. The reducer
-  // is pure, so applying each action twice yields the same state.
-  const stateRef = useRef(state);
-  const dispatch = useCallback((action: WorkspaceAction) => {
-    stateRef.current = workspaceReducer(stateRef.current, action);
-    rawDispatch(action);
-  }, []);
-  const controllers = useRef(new Map<string, AbortController>());
   const hasCases = state.cases.length > 0;
 
   // The idle timer lives for the whole tab; expiry clears every case.
@@ -123,29 +95,6 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
     return () => window.removeEventListener("beforeunload", warn);
   }, [hasCases]);
 
-  const addFiles = useCallback(
-    async (files: File[]) => {
-      const room = limits.BATCH_MAX_PATIENTS - state.cases.length;
-      const accepted = files.slice(0, Math.max(0, room));
-      const entries = accepted.map((file) => ({ id: randomId(), fileName: file.name, file }));
-      dispatch({ type: "add-cases", cases: entries.map(({ id, fileName }) => ({ id, fileName })) });
-      for (const { id, file } of entries) {
-        if (file.size > limits.PDF_MAX_BYTES) {
-          dispatch({ type: "parse-failed", caseId: id, message: `El archivo supera el máximo de ${Math.round(limits.PDF_MAX_BYTES / 1_000_000)} MB.` });
-          continue;
-        }
-        try {
-          const pages = await extractPagesBrowser(file, limits.PDF_MAX_PAGES);
-          dispatch({ type: "parsed", caseId: id, parsed: parseMedexis(pages) });
-        } catch (err) {
-          const message = err instanceof ParseError || err instanceof Error ? err.message : "No se pudo leer el PDF.";
-          dispatch({ type: "parse-failed", caseId: id, message });
-        }
-      }
-    },
-    [dispatch, limits.BATCH_MAX_PATIENTS, limits.PDF_MAX_BYTES, limits.PDF_MAX_PAGES, state.cases.length],
-  );
-
   const endSession = useCallback(() => {
     dispatch({ type: "clear-all" });
     setNotice(null);
@@ -169,141 +118,82 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
     };
   }, []);
 
-  // Select run: the notes travel without any header field; the response is
-  // applied only if it matches the attempt still open for the case.
+  // The runner emits reducer actions; the store only adds the idle-timer
+  // pause. It lives in a ref because it is used from handlers and effects.
+  const runner = useRef<CaseRunner | null>(null);
+  useEffect(() => {
+    runner.current = createRunner({ transport: httpTransport, emit: dispatch, retries: limits.GENERATION_MAX_RETRIES, onCall: beginClinicalCall });
+  }, [beginClinicalCall, limits.GENERATION_MAX_RETRIES]);
+
+  const addFiles = useCallback(
+    async (files: File[]) => {
+      const entries = files.map((file) => ({ id: randomId(), fileName: file.name, file }));
+      // The reducer enforces the cap; a file it drops is parsed for nothing and its actions are ignored.
+      dispatch({ type: "add-cases", cases: entries.map(({ id, fileName }) => ({ id, fileName })), max: limits.BATCH_MAX_PATIENTS });
+      for (const { id, file } of entries) {
+        if (file.size > limits.PDF_MAX_BYTES) {
+          dispatch({ type: "parse-failed", caseId: id, message: `El archivo supera el máximo de ${Math.round(limits.PDF_MAX_BYTES / 1_000_000)} MB.` });
+          continue;
+        }
+        try {
+          const pages = await extractPagesBrowser(file, limits.PDF_MAX_PAGES);
+          dispatch({ type: "parsed", caseId: id, parsed: parseMedexis(pages) });
+        } catch (err) {
+          const message = err instanceof ParseError || err instanceof Error ? err.message : "No se pudo leer el PDF.";
+          dispatch({ type: "parse-failed", caseId: id, message });
+        }
+      }
+    },
+    [limits.BATCH_MAX_PATIENTS, limits.PDF_MAX_BYTES, limits.PDF_MAX_PAGES],
+  );
+
+  const recordOf = useCallback((caseId: string) => state.cases.find((c) => c.id === caseId), [state.cases]);
+
   const analyze = useCallback(
     async (caseId: string) => {
-      const record = stateRef.current.cases.find((c) => c.id === caseId);
-      if (!record?.parsed || !record.insurer || !record.headerConfirmed) return;
-      const attemptId = randomId();
-      const controller = new AbortController();
-      controllers.current.set(caseId, controller);
-      const body: SelectRequest = {
-        attemptId,
-        insurer: record.insurer,
-        notes: record.parsed.notes.map(toSource),
-      };
-      dispatch({ type: "analyze-started", caseId, attemptId });
-      const release = beginClinicalCall();
-      try {
-        const response = await withRetry(
-          () => apiFetch<SelectResponse>("/api/select", { method: "POST", json: body, signal: controller.signal }),
-          limits.GENERATION_MAX_RETRIES,
-          controller.signal,
-        );
-        if (response.attemptId !== attemptId) return;
-        dispatch({ type: "analyzed", caseId, attemptId, selection: response.selection });
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        dispatch({ type: "analyze-failed", caseId, attemptId, message: err instanceof Error ? err.message : "No se pudo analizar la historia." });
-      } finally {
-        release();
-        if (controllers.current.get(caseId) === controller) controllers.current.delete(caseId);
-      }
+      const record = recordOf(caseId);
+      if (record) await runner.current?.analyze(record);
     },
-    [beginClinicalCall, dispatch, limits.GENERATION_MAX_RETRIES],
+    [recordOf],
   );
 
-  // Generate run: only the notes the confirmed selection uses travel.
   const generate = useCallback(
     async (caseId: string) => {
-      const record = stateRef.current.cases.find((c) => c.id === caseId);
-      if (!record?.parsed || !record.insurer || !record.selection || !record.headerConfirmed) return;
-      const used = new Set([
-        ...record.selection.specialties.flatMap((s) => [s.primaryNoteId, ...s.supportingNoteIds]),
-        ...record.selection.diagnosisNoteIds,
-        ...record.selection.historyNoteIds,
-        ...record.selection.medicationNoteIds,
-      ]);
-      const sources = record.parsed.notes.filter((n) => used.has(n.id)).map(toSource);
-      const attemptId = randomId();
-      const controller = new AbortController();
-      controllers.current.set(caseId, controller);
-      const body: GenerateRequest = { attemptId, insurer: record.insurer, selection: record.selection, sources };
-      dispatch({ type: "generate-started", caseId, attemptId });
-      const release = beginClinicalCall();
-      try {
-        const response = await withRetry(
-          () => apiFetch<GenerateResponse>("/api/generate", { method: "POST", json: body, signal: controller.signal }),
-          limits.GENERATION_MAX_RETRIES,
-          controller.signal,
-        );
-        if (response.attemptId !== attemptId) return;
-        dispatch({ type: "generated", caseId, attemptId, draft: response.draft, versions: response.versions });
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        dispatch({ type: "generate-failed", caseId, attemptId, message: err instanceof Error ? err.message : "No se pudo generar el resumen." });
-      } finally {
-        release();
-        if (controllers.current.get(caseId) === controller) controllers.current.delete(caseId);
-      }
+      const record = recordOf(caseId);
+      if (record) await runner.current?.generate(record);
     },
-    [beginClinicalCall, dispatch, limits.GENERATION_MAX_RETRIES],
+    [recordOf],
   );
 
-  const cancelAttempt = useCallback(
-    (caseId: string) => {
-      controllers.current.get(caseId)?.abort();
-      controllers.current.delete(caseId);
-      dispatch({ type: "cancel-attempt", caseId });
-    },
-    [dispatch],
-  );
+  const cancelAttempt = useCallback((caseId: string) => runner.current?.cancel(caseId), []);
 
-  // Feedback storage never blocks the review: a failure only shows a notice.
-  const sendFeedback = useCallback(async (caseId: string) => {
-    const record = stateRef.current.cases.find((c) => c.id === caseId);
-    const body = record ? feedbackOf(record) : null;
-    if (!body) return;
-    dispatch({ type: "feedback-status", caseId, status: "sending" });
-    try {
-      await apiFetch("/api/feedback", { method: "POST", json: body });
-      dispatch({ type: "feedback-status", caseId, status: "saved" });
-    } catch {
-      dispatch({ type: "feedback-status", caseId, status: "failed" });
-    }
-  }, [dispatch]);
-
-  const confirmReview = useCallback(
-    async (caseId: string) => {
-      dispatch({ type: "confirm-review", caseId });
-      await sendFeedback(caseId);
-    },
-    [dispatch, sendFeedback],
-  );
+  // Stored feedback follows the record: whenever a reviewed case is marked
+  // stale (confirmation, rating, edit reason, retry) it is sent again.
+  useEffect(() => {
+    for (const c of state.cases) if (c.feedbackStatus === "stale") void runner.current?.syncFeedback(c);
+  }, [state.cases]);
 
   const runBatch = useCallback(async () => {
-    const ids = batchCandidates(stateRef.current.cases).map((c) => c.id);
-    if (ids.length === 0) return;
+    const candidates = batchCandidates(state.cases);
+    if (candidates.length === 0) return;
     batchCanceled.current = false;
     setBatchRunning(true);
     try {
-      await runQueue(
-        ids,
-        limits.BATCH_CONCURRENCY,
-        async (id) => {
-          // A case that failed or was canceled keeps its selection, so only the stage it lacks runs again.
-          const before = stateRef.current.cases.find((c) => c.id === id);
-          if (!before?.selection) await analyze(id);
-          const after = stateRef.current.cases.find((c) => c.id === id);
-          const generable = after?.state === "ready-to-generate" || after?.state === "error" || after?.state === "canceled";
-          if (after?.selection && generable && !batchCanceled.current) await generate(id);
-        },
-        () => batchCanceled.current,
-      );
+      const isCanceled = () => batchCanceled.current;
+      await runQueue(candidates, limits.BATCH_CONCURRENCY, async (record) => runner.current?.runPending(record, isCanceled), isCanceled);
     } finally {
       setBatchRunning(false);
     }
-  }, [analyze, generate, limits.BATCH_CONCURRENCY]);
+  }, [limits.BATCH_CONCURRENCY, state.cases]);
 
   const cancelBatch = useCallback(() => {
     batchCanceled.current = true;
-    for (const id of [...controllers.current.keys()]) cancelAttempt(id);
-  }, [cancelAttempt]);
+    runner.current?.cancelAll();
+  }, []);
 
   const value = useMemo<WorkspaceContextValue>(
-    () => ({ state, dispatch, limits, addFiles, endSession, notice, continueWorking, dismissNotice: () => setNotice(null), beginClinicalCall, analyze, generate, cancelAttempt, confirmReview, sendFeedback, batchRunning, runBatch, cancelBatch }),
-    [state, dispatch, limits, addFiles, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, confirmReview, sendFeedback, batchRunning, runBatch, cancelBatch],
+    () => ({ state, dispatch, limits, addFiles, endSession, notice, continueWorking, dismissNotice: () => setNotice(null), beginClinicalCall, analyze, generate, cancelAttempt, batchRunning, runBatch, cancelBatch }),
+    [state, limits, addFiles, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchRunning, runBatch, cancelBatch],
   );
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

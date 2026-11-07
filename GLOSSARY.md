@@ -110,6 +110,10 @@ _Avoid_: skill, rule set, template
 **Attempt**:
 One request to the AI provider for one step of one case. Retries are new attempts.
 
+**Case runner**:
+The module that runs one case's clinical steps (analyze, generate) as attempts through a transport and keeps the stored feedback in sync; the browser store and the local scripts are its adapters.
+_Avoid_: orchestrator, service
+
 **Revision**:
 The version counter of a case's content. Edits, source changes and regeneration advance it; late responses from older revisions are discarded.
 

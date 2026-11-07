@@ -1,34 +1,54 @@
 import { randomUUID } from "node:crypto";
+import { createRunner, type Transport } from "@/case/runner";
+import { newCase, type CaseRecord } from "@/case/types";
+import type { Selection } from "@/contracts/ai";
 import type { Insurer, ParsedExport } from "@/contracts/case";
+import type { Draft } from "@/contracts/draft";
 import type { ModelSetup } from "./model";
 import { runGenerate } from "./generate";
 import { runSelect } from "./select";
 
-// Runs both stages on a parsed export exactly as the app does, in process.
-// Used by the smoke and local evaluation scripts; never by the server.
+type Usage = { inputTokens: number | null; outputTokens: number | null };
+
+// Runs both stages on a parsed export through the same case runner as the
+// browser, with an in-process transport instead of HTTP. Used by the smoke
+// and local evaluation scripts; never by the server.
 export async function runCase(parsed: ParsedExport, insurer: Insurer, setup: ModelSetup) {
-  const notes = parsed.notes.map((n) => ({ id: n.id, recordedDate: n.recordedDate, authorName: n.authorName, authorSpecialtyLabel: n.authorSpecialtyLabel, text: n.text, pages: n.pages }));
-  const t0 = Date.now();
-  const select = await runSelect({ attemptId: randomUUID(), insurer, notes }, setup);
-  const t1 = Date.now();
-  const used = new Set([
-    ...select.selection.specialties.flatMap((s) => [s.primaryNoteId, ...s.supportingNoteIds]),
-    ...select.selection.diagnosisNoteIds,
-    ...select.selection.historyNoteIds,
-    ...select.selection.medicationNoteIds,
-  ]);
-  const sources = notes.filter((n) => used.has(n.id));
-  const generate = await runGenerate({ attemptId: randomUUID(), insurer, selection: select.selection, sources }, setup);
-  const t2 = Date.now();
-  return {
-    selection: select.selection,
-    draft: generate.draft,
-    versions: generate.versions,
-    stages: {
-      select: { ms: t1 - t0, ...select.usage },
-      generate: { ms: t2 - t1, ...generate.usage },
+  const usage: { select?: Usage & { ms: number }; generate?: Usage & { ms: number } } = {};
+  const transport: Transport = {
+    select: async (body) => {
+      const t0 = Date.now();
+      const result = await runSelect(body, setup);
+      usage.select = { ms: Date.now() - t0, ...result.usage };
+      return { attemptId: body.attemptId, selection: result.selection, versions: result.versions };
+    },
+    generate: async (body) => {
+      const t0 = Date.now();
+      const result = await runGenerate(body, setup);
+      usage.generate = { ms: Date.now() - t0, ...result.usage };
+      return { attemptId: body.attemptId, draft: result.draft, versions: result.versions };
+    },
+    feedback: async () => {
+      throw new Error("feedback is not stored by the scripts");
     },
   };
+  let selection: Selection | undefined;
+  let draft: Draft | undefined;
+  let versions: CaseRecord["versions"] = null;
+  let failure: string | undefined;
+  const runner = createRunner({
+    transport,
+    retries: 0,
+    newId: randomUUID,
+    emit: (action) => {
+      if (action.type === "analyzed") selection = action.selection;
+      if (action.type === "generated") ({ draft, versions } = action);
+      if (action.type === "analyze-failed" || action.type === "generate-failed") failure = action.message;
+    },
+  });
+  await runner.runPending({ ...newCase(randomUUID(), "export"), parsed, header: parsed.header, headerConfirmed: true, insurer });
+  if (!selection || !draft || !versions || !usage.select || !usage.generate) throw new Error(failure ?? "the run produced no draft");
+  return { selection, draft, versions, stages: { select: usage.select, generate: usage.generate } };
 }
 
 // Reported list price for gpt-6-luna (USD per million tokens); override
