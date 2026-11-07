@@ -136,8 +136,9 @@
   }
 }
 
-@layer components {
-  /* Pill buttons as on sienes.com.ar */
+@layer utilities {
+  /* Pill buttons as on sienes.com.ar; the button's size utilities set a
+     radius too, so this rule must sit in the utilities layer, after them. */
   [data-slot="button"] {
     border-radius: 999px;
   }

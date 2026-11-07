@@ -65,3 +65,17 @@ describe("generate run", () => {
     expect(validateDraft({ ...draft, prestacion: { ...draft.prestacion, quantity: 24 } }, sources).alerts).toEqual([]);
   });
 });
+
+describe("draft validation", () => {
+  it("reports an uncited diagnosis once, not once per place it appears", () => {
+    const draft: Draft = {
+      sections: [{ key: "diagnosis", title: "Diagnóstico", text: "No consta diagnóstico.", references: [] }],
+      diagnosis: { text: "No consta diagnóstico.", cie10: null, references: [] },
+      prestacion: { practiceCode: null, module: null, quantity: null, references: [] },
+      alerts: [],
+    };
+    const alerts = validateDraft(draft, sources).alerts.filter((a) => a.code === "invalid-reference");
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].sectionKey).toBe("diagnosis");
+  });
+});

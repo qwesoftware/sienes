@@ -30,6 +30,23 @@ export function HeaderForm({ record }: { record: CaseRecord }) {
   const locked = record.headerConfirmed;
   const canConfirm = Boolean(header.patientName.value) && record.insurer !== null;
 
+  if (locked) {
+    const cud = { yes: "CUD sí", no: "CUD no", unknown: "CUD sin información" }[header.cud];
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm" data-testid="header-summary">
+        <p>
+          <span className="font-medium">{header.patientName.value}</span>
+          {header.documentNumber.value ? ` · DNI ${header.documentNumber.value}` : ""}
+          {header.memberNumber.value ? ` · Afiliado ${header.memberNumber.value}` : ""}
+          {record.insurer ? ` · ${insurerLabels[record.insurer]}` : ""} · {cud}
+        </p>
+        <Button type="button" variant="outline" size="sm" onClick={() => dispatch({ type: "reopen-header", caseId: record.id })}>
+          Editar datos
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <form
       className="flex flex-col gap-6"
@@ -53,7 +70,6 @@ export function HeaderForm({ record }: { record: CaseRecord }) {
               <Input
                 id={id}
                 value={field.value ?? ""}
-                disabled={locked}
                 onChange={(e) => dispatch({ type: "edit-header", caseId: record.id, field: key, value: e.target.value })}
               />
             </Field>
@@ -64,7 +80,6 @@ export function HeaderForm({ record }: { record: CaseRecord }) {
           <Select
             value={record.insurer}
             items={insurerLabels}
-            disabled={locked}
             onValueChange={(value) => {
               const parsed = insurerSchema.safeParse(value);
               if (parsed.success) dispatch({ type: "set-insurer", caseId: record.id, insurer: parsed.data });
@@ -83,13 +98,12 @@ export function HeaderForm({ record }: { record: CaseRecord }) {
               </SelectGroup>
             </SelectContent>
           </Select>
-          <FieldDescription>Todas reciben el formato PAMI.</FieldDescription>
+          <FieldDescription>{record.insurer ? "Todas reciben el formato PAMI." : "Elegí la obra social destino para confirmar los datos."}</FieldDescription>
         </Field>
         <Field>
           <FieldLabel>CUD</FieldLabel>
           <RadioGroup
             value={header.cud}
-            disabled={locked}
             aria-label="CUD"
             className="flex gap-4"
             onValueChange={(value) => {
@@ -109,15 +123,9 @@ export function HeaderForm({ record }: { record: CaseRecord }) {
         </Field>
       </FieldGroup>
       <div className="flex gap-2">
-        {locked ? (
-          <Button type="button" variant="outline" onClick={() => dispatch({ type: "reopen-header", caseId: record.id })}>
-            Editar datos
-          </Button>
-        ) : (
-          <MainAction type="submit" disabled={!canConfirm}>
-            Confirmar datos
-          </MainAction>
-        )}
+        <MainAction type="submit" disabled={!canConfirm}>
+          Confirmar datos
+        </MainAction>
       </div>
     </form>
   );

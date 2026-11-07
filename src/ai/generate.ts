@@ -42,8 +42,13 @@ export function validateDraft(draft: Draft, sources: SourceNote[]): Draft {
   // A section that only states the absence of clinical content has nothing to cite.
   const noContent = new Set(draft.alerts.filter((a) => a.code === "no-clinical-content").map((a) => a.sectionKey));
   const issues = findReferenceIssues(draft, sources).filter((i) => !(i.reason === "missing-reference" && noContent.has(i.where)));
+  // The diagnosis is both a section and a field, so the same gap is found twice.
+  const seen = new Set<string>();
   for (const issue of issues) {
     const where = issue.where.startsWith("progress:") ? draft.sections.find((s) => s.key === issue.where)?.title ?? issue.where : issue.where;
+    const key = `${issue.where}|${issue.reason}|${issue.reference?.noteId ?? ""}|${issue.reference?.page ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     alerts.push({
       code: "invalid-reference",
       sectionKey: issue.where,

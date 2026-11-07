@@ -1,6 +1,17 @@
 "use client";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -28,13 +39,29 @@ export function CaseDetail({ record }: { record: CaseRecord }) {
             {stateLabels[record.state]}
           </Badge>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => dispatch({ type: "remove-case", caseId: record.id })}>
-          Quitar caso
-        </Button>
+        {record.draft ? (
+          <AlertDialog>
+            <AlertDialogTrigger render={<Button variant="ghost" size="sm" />}>Quitar caso</AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Quitar este caso?</AlertDialogTitle>
+                <AlertDialogDescription>Se descarta el borrador y las correcciones que hiciste. No se puede recuperar.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Volver</AlertDialogCancel>
+                <AlertDialogAction onClick={() => dispatch({ type: "remove-case", caseId: record.id })}>Quitar caso</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={() => dispatch({ type: "remove-case", caseId: record.id })}>
+            Quitar caso
+          </Button>
+        )}
       </div>
 
       {record.state === "reading" ? (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
           <Spinner /> Leyendo el PDF…
         </p>
       ) : null}

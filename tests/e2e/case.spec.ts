@@ -31,10 +31,14 @@ test("a staff member uploads an export, reviews the header and confirms it", asy
   await page.getByRole("option", { name: "OSDE" }).click();
   await page.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Listo para analizar");
-  await expect(page.getByLabel("Paciente")).toBeDisabled();
+  // The confirmed header collapses to a one-line summary; the main action of the next step takes focus.
+  await expect(page.getByTestId("header-summary")).toContainText("PEREYRA, MARTA LUCIA · DNI 11222333 · Afiliado 61234567899 · OSDE · CUD sin información");
+  await expect(page.getByLabel("Paciente")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Analizar fuentes" })).toBeFocused();
 
   await page.getByRole("button", { name: "Editar datos" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
+  await expect(page.getByLabel("Paciente")).toHaveValue("PEREYRA, MARTA LUCIA");
 });
 
 test("an export without a text layer is rejected with instructions", async ({ page }) => {
@@ -91,12 +95,18 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
 
   await page.getByRole("button", { name: "Generar resumen" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Borrador");
+  await expect(page.getByRole("region", { name: "Borrador" }).locator("..")).toBeFocused();
   await expect(page.getByTestId("field-diagnosis.cie10")).toHaveValue("G20");
   await expect(page.getByTestId("field-prestacion.practiceCode")).toHaveValue("250101");
   await expect(page.getByTestId("field-prestacion.quantity")).toHaveValue("72");
   await expect(page.getByTestId("section-progress:kinesiologia").getByRole("textbox")).toContainText("freezing");
 
+  // The confirmed sources collapse to a summary once the draft exists.
+  await expect(page.getByTestId("sources-summary")).toContainText("Fuentes confirmadas");
+
   // Copy and download stay disabled until the review is confirmed.
+  const copyIndicaciones = page.getByRole("button", { name: "Copiar Indicaciones" });
+  await expect(copyIndicaciones).toBeDisabled();
   const copyReason = page.getByTestId("section-reason").getByRole("button", { name: "Copiar" });
   await expect(copyReason).toBeDisabled();
   await expect(page.getByRole("button", { name: "Descargar Word" })).toHaveCount(0);
@@ -108,6 +118,17 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
   await page.getByRole("button", { name: "Descargar Word" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("RHC-QUIROGA-HECTOR-OSVALDO.docx");
+
+  // Indicaciones combines every section in one text with its length.
+  await expect(copyIndicaciones).toBeEnabled();
+  const indicaciones = page.getByTestId("indicaciones");
+  await expect(indicaciones.getByRole("textbox")).toHaveValue(/^Motivo: [^\n]+\n\nDiagnóstico: /);
+  await expect(indicaciones).toContainText(/[1-9]\d* caracteres/);
+
+  // Removing a case with a draft asks first.
+  await page.getByRole("button", { name: "Quitar caso" }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("Se descarta el borrador");
+  await page.getByRole("button", { name: "Volver" }).click();
 
   // An edit invalidates the review: copy is disabled again and a new confirmation is needed.
   await page.getByTestId("section-reason").getByRole("textbox").fill("Se solicita la renovación del módulo de rehabilitación.");

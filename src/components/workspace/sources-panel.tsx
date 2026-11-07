@@ -133,16 +133,27 @@ export function SourcesPanel({ record }: { record: CaseRecord }) {
   );
 }
 
+// The chosen notes are listed; the rest stay behind "Agregar nota" so a
+// long export does not turn every group into a wall of checkboxes.
 function NoteChecklist({ label, notes, checked, onChange }: { label: string; notes: Note[]; checked: string[]; onChange: (id: string, on: boolean) => void }) {
+  const row = (n: Note) => (
+    <label key={n.id} className="flex items-center gap-2 text-sm">
+      <Checkbox checked={checked.includes(n.id)} onCheckedChange={(on) => onChange(n.id, on === true)} />
+      {noteCaption(n)}
+    </label>
+  );
+  const chosen = notes.filter((n) => checked.includes(n.id));
+  const others = notes.filter((n) => !checked.includes(n.id));
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className="mb-1 text-sm font-medium">{label}</legend>
-      {notes.map((n) => (
-        <label key={n.id} className="flex items-center gap-2 text-sm">
-          <Checkbox checked={checked.includes(n.id)} onCheckedChange={(on) => onChange(n.id, on === true)} />
-          {noteCaption(n)}
-        </label>
-      ))}
+      {chosen.length > 0 ? chosen.map(row) : <p className="text-sm text-muted-foreground">Ninguna</p>}
+      {others.length > 0 ? (
+        <details className="text-sm">
+          <summary className="cursor-pointer text-muted-foreground">Agregar nota ({others.length})</summary>
+          <div className="mt-2 flex flex-col gap-2">{others.map(row)}</div>
+        </details>
+      ) : null}
     </fieldset>
   );
 }

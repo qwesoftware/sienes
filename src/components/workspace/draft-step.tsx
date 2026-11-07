@@ -20,15 +20,21 @@ import { insurerLabels } from "@/contracts/case";
 import { rhcBlob, rhcFileName } from "@/word/rhc-docx";
 import { DraftEditor } from "./draft-editor";
 import { MainAction } from "./main-action";
+import { StepActions } from "./step-actions";
+import { useFocusWhen } from "./use-focus-when";
 
 // Step 3: generation, review confirmation bound to the revision, and downloads.
 export function DraftStep({ record }: { record: CaseRecord }) {
   const { dispatch, generate, cancelAttempt } = useWorkspace();
-  if (!record.selection || !record.headerConfirmed) return null;
+  const ready = Boolean(record.selection && record.headerConfirmed);
+  const generateRef = useFocusWhen<HTMLButtonElement>(ready && !record.draft && record.state === "ready-to-generate");
+  // A new draft puts focus at its top (alerts first), not at the review button at the bottom.
+  const draftRef = useFocusWhen<HTMLDivElement>(ready && record.draft !== null && record.state === "draft" && record.reviewedRevision === null);
+  if (!ready) return null;
 
   if (record.state === "generating") {
     return (
-      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+      <div className="flex items-center gap-3 text-sm text-muted-foreground" role="status">
         <Spinner /> Generando el resumen…
         <Button variant="outline" size="sm" onClick={() => cancelAttempt(record.id)}>
           Cancelar
@@ -62,8 +68,10 @@ export function DraftStep({ record }: { record: CaseRecord }) {
 
       {record.draft ? (
         <>
-          <DraftEditor record={record} />
-          <div className="flex flex-wrap items-center gap-3">
+          <div ref={draftRef} tabIndex={-1} className="outline-none">
+            <DraftEditor record={record} />
+          </div>
+          <StepActions>
             {reviewed ? (
               <MainAction onClick={download}>Descargar Word</MainAction>
             ) : (
@@ -99,12 +107,14 @@ export function DraftStep({ record }: { record: CaseRecord }) {
                 Regenerar
               </Button>
             )}
-          </div>
+          </StepActions>
         </>
       ) : (
-        <div>
-          <MainAction onClick={() => generate(record.id)}>Generar resumen</MainAction>
-        </div>
+        <StepActions>
+          <MainAction ref={generateRef} onClick={() => generate(record.id)}>
+            Generar resumen
+          </MainAction>
+        </StepActions>
       )}
     </div>
   );

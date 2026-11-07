@@ -126,5 +126,5 @@ A random identifier under which a case's draft, corrected text and ratings are s
 _Avoid_: patient id, record id
 
 **Rating**:
-The reviewer's judgement of one section or field of the draft (useful, needed edits, wrong), stored with the case id.
+The reviewer's judgement of one section of the draft on a 1 to 5 scale (1 unusable, 3 needed corrections, 5 usable as is), stored with the case id.
 _Avoid_: feedback (the optional reason category attached to an edit)

@@ -9,7 +9,7 @@ import { rhcZip, zipPartition } from "@/word/rhc-zip";
 // Batch controls: process every confirmed case with the proposed sources,
 // cancel what is in flight, and download the reviewed cases as a ZIP.
 export function BatchBar() {
-  const { state, batchRunning, runBatch, cancelBatch } = useWorkspace();
+  const { state, batchRunning, batchProgress, runBatch, cancelBatch } = useWorkspace();
   if (state.cases.length === 0) return null;
   const candidates = batchCandidates(state.cases);
   const { included, excluded } = zipPartition(state.cases);
@@ -27,9 +27,12 @@ export function BatchBar() {
   return (
     <div className="flex flex-col gap-2 rounded-xl border p-3 text-sm" aria-label="Lote">
       <div className="flex flex-wrap items-center gap-2">
-        {batchRunning ? (
+        {batchRunning && batchProgress ? (
           <>
-            <Spinner /> Procesando el lote…
+            <span className="flex items-center gap-2" role="status">
+              <Spinner /> Procesando {Math.min(batchProgress.done + 1, batchProgress.total)} de {batchProgress.total}…
+              {batchProgress.failed > 0 ? ` ${batchProgress.failed} con error` : ""}
+            </span>
             <Button variant="outline" size="sm" onClick={cancelBatch}>
               Cancelar lote
             </Button>

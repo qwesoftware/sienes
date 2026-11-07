@@ -31,6 +31,7 @@ type WorkspaceContextValue = {
   // Batch: analyze and generate every confirmed case that is not done yet,
   // using the proposed sources; failed cases can be retried the same way.
   batchRunning: boolean;
+  batchProgress: { done: number; total: number; failed: number } | null;
   runBatch: () => Promise<void>;
   cancelBatch: () => void;
 };
@@ -57,7 +58,7 @@ function randomId(): string {
 export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; children: React.ReactNode }) {
   const [state, dispatch] = useReducer(workspaceReducer, initialWorkspace);
   const [notice, setNotice] = useState<SessionNotice>(null);
-  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchIds, setBatchIds] = useState<string[] | null>(null);
   const batchCanceled = useRef(false);
   const timer = useRef<IdleTimer | null>(null);
   const inFlight = useRef(0);
@@ -177,12 +178,12 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
     const candidates = batchCandidates(state.cases);
     if (candidates.length === 0) return;
     batchCanceled.current = false;
-    setBatchRunning(true);
+    setBatchIds(candidates.map((c) => c.id));
     try {
       const isCanceled = () => batchCanceled.current;
       await runQueue(candidates, limits.BATCH_CONCURRENCY, async (record) => runner.current?.runPending(record, isCanceled), isCanceled);
     } finally {
-      setBatchRunning(false);
+      setBatchIds(null);
     }
   }, [limits.BATCH_CONCURRENCY, state.cases]);
 
@@ -191,9 +192,17 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
     runner.current?.cancelAll();
   }, []);
 
+  // Progress of the running batch: a case is done once it holds a draft or stopped in error.
+  const batchProgress = useMemo(() => {
+    if (!batchIds) return null;
+    const cases = batchIds.map((id) => state.cases.find((c) => c.id === id)).filter((c) => c !== undefined);
+    const done = cases.filter((c) => c.draft !== null || c.state === "error" || c.state === "canceled").length;
+    return { done, total: batchIds.length, failed: cases.filter((c) => c.state === "error").length };
+  }, [batchIds, state.cases]);
+
   const value = useMemo<WorkspaceContextValue>(
-    () => ({ state, dispatch, limits, addFiles, endSession, notice, continueWorking, dismissNotice: () => setNotice(null), beginClinicalCall, analyze, generate, cancelAttempt, batchRunning, runBatch, cancelBatch }),
-    [state, limits, addFiles, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchRunning, runBatch, cancelBatch],
+    () => ({ state, dispatch, limits, addFiles, endSession, notice, continueWorking, dismissNotice: () => setNotice(null), beginClinicalCall, analyze, generate, cancelAttempt, batchRunning: batchIds !== null, batchProgress, runBatch, cancelBatch }),
+    [state, limits, addFiles, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchIds, batchProgress, runBatch, cancelBatch],
   );
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

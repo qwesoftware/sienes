@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { indicacionesText } from "@/case/indicaciones";
 import type { DraftField } from "@/case/reducer";
 import { useWorkspace } from "@/case/store";
 import type { CaseRecord } from "@/case/types";
@@ -16,6 +17,7 @@ import { CopyButton } from "./copy-button";
 
 const NO_REASON = "__none__";
 const reasonItems: Record<string, string> = { [NO_REASON]: "Sin motivo", ...editReasonLabels };
+const ratingLegend = "1 inservible · 3 necesitó correcciones · 5 útil tal cual";
 
 export function DraftEditor({ record }: { record: CaseRecord }) {
   const { dispatch } = useWorkspace();
@@ -24,6 +26,12 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
   const reviewed = record.reviewedRevision === record.revision;
   const notes = new Map((record.parsed?.notes ?? []).map((n) => [n.id, n]));
   const edit = (fieldKey: string) => record.edits[fieldKey];
+  // Where an alert points: a section, or the portal fields for the diagnosis and prestación.
+  const anchorOf = (sectionKey: string | null) => (sectionKey ? `${record.id}-${sectionKey === "prestacion" ? "prestacion.practiceCode" : sectionKey}` : null);
+  const titleOf = (sectionKey: string | null) =>
+    sectionKey === "prestacion" ? "Práctica" : (draft.sections.find((s) => s.key === sectionKey)?.title ?? (sectionKey === "diagnosis" ? "Diagnóstico" : null));
+  const alertsFor = (key: string) => draft.alerts.filter((a) => a.sectionKey === key).length;
+  const indicaciones = indicacionesText(draft);
 
   const referenceList = (all: Reference[]) => {
     const references = [...new Map(all.map((r) => [`${r.noteId}:${r.page}`, r])).values()];
@@ -81,6 +89,7 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
     <ToggleGroup
       value={record.ratings[fieldKey] ? [String(record.ratings[fieldKey])] : []}
       aria-label={`Calificación de ${fieldKey}`}
+      title={ratingLegend}
       size="sm"
       variant="outline"
       onValueChange={(values: string[]) => {
@@ -111,22 +120,36 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
   return (
     <section className="flex flex-col gap-6" aria-label="Borrador">
       {draft.alerts.length > 0 ? (
-        <Alert role="status" data-testid="draft-alerts">
+        <Alert role="status" data-testid="draft-alerts" tabIndex={-1}>
           <AlertTitle>Para revisar</AlertTitle>
           <AlertDescription>
             <ul className="list-disc pl-5">
-              {draft.alerts.map((a, i) => (
-                <li key={i}>
-                  <Badge variant="outline" className="mr-2">
-                    {alertLabels[a.code]}
-                  </Badge>
-                  {a.message}
-                </li>
-              ))}
+              {draft.alerts.map((a, i) => {
+                const anchor = anchorOf(a.sectionKey);
+                const title = titleOf(a.sectionKey);
+                return (
+                  <li key={i}>
+                    <Badge variant="outline" className="mr-2">
+                      {alertLabels[a.code]}
+                    </Badge>
+                    {anchor && title ? (
+                      <a href={`#${anchor}`} className="mr-1 font-medium underline-offset-2 hover:underline">
+                        {title}:
+                      </a>
+                    ) : null}
+                    {a.message}
+                  </li>
+                );
+              })}
             </ul>
           </AlertDescription>
         </Alert>
       ) : null}
+
+      <p className="text-sm text-muted-foreground">
+        {reviewed ? "Revisión confirmada: podés copiar cada campo o descargar el Word." : "Los botones Copiar y la descarga se habilitan al confirmar la revisión."} Calificación por sección:{" "}
+        {ratingLegend}.
+      </p>
 
       <div className="grid gap-4 md:grid-cols-2">
         {fieldInput("diagnosis.text", "Diagnóstico", draft.diagnosis.text ?? "")}
@@ -140,7 +163,10 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
       {draft.sections.map((section) => (
         <Field key={section.key} data-testid={`section-${section.key}`}>
           <FieldLabel htmlFor={`${record.id}-${section.key}`} className="justify-between">
-            {section.title}
+            <span className="flex items-center gap-2">
+              {section.title}
+              {alertsFor(section.key) > 0 ? <Badge variant="outline">Para revisar</Badge> : null}
+            </span>
             <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
               {ratingGroup(section.key)}
               {section.text.length} caracteres
@@ -157,6 +183,18 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
           {reasonSelect(section.key)}
         </Field>
       ))}
+
+      <Field data-testid="indicaciones">
+        <FieldLabel htmlFor={`${record.id}-indicaciones`} className="justify-between">
+          Indicaciones (todo el resumen)
+          <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+            {indicaciones.length} caracteres
+            <CopyButton text={indicaciones} label="Copiar Indicaciones" disabled={!reviewed} />
+          </span>
+        </FieldLabel>
+        <Textarea id={`${record.id}-indicaciones`} value={indicaciones} readOnly className="max-h-64" />
+        <FieldDescription>El resumen y la evolución por áreas en un solo texto, sin repetir secciones iguales. No se recorta: el portal puede tener un límite propio.</FieldDescription>
+      </Field>
     </section>
   );
 }
