@@ -27,6 +27,7 @@ export const errorCategorySchema = z.enum([
   "canceled",
   "unknown",
 ]);
+export type ErrorCategory = z.infer<typeof errorCategorySchema>;
 
 export const technicalEventSchema = z.object({
   kind: eventKindSchema,

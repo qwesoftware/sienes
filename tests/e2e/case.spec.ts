@@ -49,3 +49,30 @@ test("finishing clears every case from the tab", async ({ page }) => {
   await page.getByRole("button", { name: "Finalizar y limpiar" }).click();
   await expect(page.getByText("Sin casos")).toBeVisible();
 });
+
+test("the reviewer analyzes the export and adjusts the proposed sources", async ({ page }) => {
+  await signIn(page);
+  await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-a-renovacion-osde.pdf");
+  await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
+  await page.getByRole("combobox", { name: "Obra social destino" }).click();
+  await page.getByRole("option", { name: "OSDE" }).click();
+  await page.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Listo para analizar");
+
+  await page.getByRole("button", { name: "Analizar fuentes" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Listo para generar");
+
+  // The PSICOLOGIA-labelled note with kinesiology content is flagged, not silently moved.
+  const kine = page.getByTestId("specialty-kinesiologia");
+  await expect(kine.getByTestId("flag-label-override")).toBeVisible();
+  await expect(kine).toContainText("firmada como PSICOLOGIA");
+  await expect(page.getByRole("region", { name: "Fuentes propuestas" })).toContainText("Notas no usadas");
+
+  // The reviewer picks another entry as the current-status source for kinesiology.
+  const primary = kine.getByRole("combobox", { name: "Entrada principal de Kinesiología" });
+  await expect(primary).toContainText("09/09/2026");
+  await primary.click();
+  await page.getByRole("option", { name: /14\/10\/2026/ }).click();
+  await expect(primary).toContainText("14/10/2026");
+  await expect(page.getByTestId("case-state")).toHaveText("Listo para generar");
+});

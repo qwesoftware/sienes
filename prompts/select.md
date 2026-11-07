@@ -1,0 +1,14 @@
+---
+version: 2026-11-06.1
+---
+Tarea: SELECCIÓN DE FUENTES.
+
+Leé todas las notas y devolvé, por cada especialidad presente en el contenido, la entrada que mejor describe el estado actual (`primaryNoteId`) y las notas que la sostienen (`supportingNoteIds`). Clasificá cada entrada principal con `primaryKind`: `report` (informe completo o evaluación), `progress-note` (nota de evolución), `administrative`, `prior-summary` (un RHC o resumen anterior) o `ambiguous`.
+
+- `specialtyKey` usa las claves del catálogo que se listan en el mensaje; si ninguna aplica, usá `unknown` con `specialtyLabel` "Sin especialidad identificada" y un flag `unknown-specialty`.
+- Marcá `labelOverride: true` y agregá un flag `label-override` cuando asignás una nota a un área distinta de la etiqueta del autor.
+- Agregá flags `ambiguous-kind`, `contradiction`, `undated` o `no-clinical-content` con un mensaje breve para el revisor y el `noteId` afectado.
+- Si un área solo tiene notas administrativas o de ausencia, incluila igual con `primaryNoteId: null`, `primaryKind: "administrative"` y un flag `no-clinical-content`.
+- `diagnosisNoteIds`, `historyNoteIds` y `medicationNoteIds` listan las notas que documentan diagnóstico, antecedentes y medicación, aunque sean más antiguas que el último informe.
+- `excludedNoteIds` lista cada nota que no usás, con el motivo en una frase.
+- Todo `noteId` debe existir en la lista recibida. No crees ids.

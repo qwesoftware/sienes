@@ -1,3 +1,4 @@
+import type { Selection } from "@/contracts/ai";
 import type { Header, Insurer, ParsedExport } from "@/contracts/case";
 import { newCase, type CaseRecord, type WorkspaceState } from "./types";
 
@@ -10,6 +11,11 @@ export type WorkspaceAction =
   | { type: "set-insurer"; caseId: string; insurer: Insurer }
   | { type: "confirm-header"; caseId: string }
   | { type: "reopen-header"; caseId: string }
+  | { type: "analyze-started"; caseId: string; attemptId: string }
+  | { type: "analyzed"; caseId: string; attemptId: string; selection: Selection }
+  | { type: "analyze-failed"; caseId: string; attemptId: string; message: string }
+  | { type: "cancel-attempt"; caseId: string }
+  | { type: "edit-selection"; caseId: string; selection: Selection }
   | { type: "select-case"; caseId: string | null }
   | { type: "remove-case"; caseId: string }
   | { type: "clear-all" };
@@ -24,6 +30,11 @@ function update(state: WorkspaceState, caseId: string, fn: (c: CaseRecord) => Ca
 // revision and invalidates a draft for copying and downloading.
 function bump(c: CaseRecord): CaseRecord {
   return { ...c, revision: c.revision + 1 };
+}
+
+// The state a confirmed case returns to, given what it already holds.
+function settled(c: CaseRecord): CaseRecord["state"] {
+  return c.draft ? "draft" : c.selection ? "ready-to-generate" : "ready-to-analyze";
 }
 
 export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
@@ -60,14 +71,35 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         c.header ? bump({ ...c, header: { ...c.header, cud: action.cud }, headerConfirmed: false, state: "confirmation-required" }) : c,
       );
     case "set-insurer":
-      return update(state, action.caseId, (c) => bump({ ...c, insurer: action.insurer, headerConfirmed: false, state: "confirmation-required" }));
+      // The insurer is an input of the selection: changing it discards sources and draft.
+      return update(state, action.caseId, (c) =>
+        bump({ ...c, insurer: action.insurer, headerConfirmed: false, state: "confirmation-required", selection: null, draft: null, attemptId: null }),
+      );
     case "confirm-header":
       return update(state, action.caseId, (c) => {
         if (!c.header || !c.insurer || !c.header.patientName.value) return c;
-        return { ...c, headerConfirmed: true, state: "ready-to-analyze" };
+        return { ...c, headerConfirmed: true, state: settled(c) };
       });
     case "reopen-header":
       return update(state, action.caseId, (c) => ({ ...c, headerConfirmed: false, state: "confirmation-required" }));
+    case "analyze-started":
+      return update(state, action.caseId, (c) => ({ ...c, state: "analyzing", attemptId: action.attemptId, error: null }));
+    case "analyzed":
+      // A late response for another attempt is discarded.
+      return update(state, action.caseId, (c) =>
+        c.attemptId === action.attemptId && c.state === "analyzing"
+          ? { ...c, state: "ready-to-generate", selection: action.selection, draft: null, attemptId: null }
+          : c,
+      );
+    case "analyze-failed":
+      return update(state, action.caseId, (c) =>
+        c.attemptId === action.attemptId && c.state === "analyzing" ? { ...c, state: "error", error: action.message, attemptId: null } : c,
+      );
+    case "cancel-attempt":
+      return update(state, action.caseId, (c) => (c.attemptId ? { ...c, state: "canceled", attemptId: null, error: null } : c));
+    case "edit-selection":
+      // Changing sources invalidates the draft until regeneration.
+      return update(state, action.caseId, (c) => bump({ ...c, selection: action.selection, draft: null, state: "ready-to-generate" }));
     case "select-case":
       return { ...state, selectedCaseId: action.caseId };
     case "remove-case": {

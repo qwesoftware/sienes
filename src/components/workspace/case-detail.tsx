@@ -7,6 +7,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/case/store";
 import type { CaseRecord } from "@/case/types";
 import { formatDate, stateLabels } from "@/lib/format";
+import { AnalyzeStep } from "./analyze-step";
 import { HeaderForm } from "./header-form";
 
 export function CaseDetail({ record }: { record: CaseRecord }) {
@@ -37,7 +38,7 @@ export function CaseDetail({ record }: { record: CaseRecord }) {
         </p>
       ) : null}
 
-      {record.state === "error" && record.error ? (
+      {record.state === "error" && record.error && !parsed ? (
         <Alert variant="destructive" role="alert">
           <AlertTitle>No se pudo procesar el archivo</AlertTitle>
           <AlertDescription>{record.error}</AlertDescription>
@@ -58,6 +59,7 @@ export function CaseDetail({ record }: { record: CaseRecord }) {
       ) : null}
 
       {parsed ? <HeaderForm record={record} /> : null}
+      {parsed ? <AnalyzeStep record={record} /> : null}
     </section>
   );
 }

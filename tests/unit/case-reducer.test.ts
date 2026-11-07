@@ -69,3 +69,42 @@ describe("workspace reducer", () => {
     expect(workspaceReducer(removed, { type: "clear-all" })).toEqual(initialWorkspace);
   });
 });
+
+describe("select run in the reducer", () => {
+  const selection = { specialties: [], diagnosisNoteIds: [], historyNoteIds: [], medicationNoteIds: [], excludedNoteIds: [] };
+  const confirmed = run([
+    { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }] },
+    { type: "parsed", caseId: "c1", parsed },
+    { type: "set-insurer", caseId: "c1", insurer: "osde" },
+    { type: "confirm-header", caseId: "c1" },
+  ]);
+
+  it("applies a response only for the attempt still open", () => {
+    const started = workspaceReducer(confirmed, { type: "analyze-started", caseId: "c1", attemptId: "a1" });
+    expect(started.cases[0].state).toBe("analyzing");
+    const late = workspaceReducer(started, { type: "analyzed", caseId: "c1", attemptId: "a0", selection });
+    expect(late.cases[0]).toMatchObject({ state: "analyzing", selection: null });
+    const done = workspaceReducer(started, { type: "analyzed", caseId: "c1", attemptId: "a1", selection });
+    expect(done.cases[0]).toMatchObject({ state: "ready-to-generate", selection, attemptId: null });
+  });
+
+  it("cancels an attempt and ignores its late response", () => {
+    const started = workspaceReducer(confirmed, { type: "analyze-started", caseId: "c1", attemptId: "a1" });
+    const canceled = workspaceReducer(started, { type: "cancel-attempt", caseId: "c1" });
+    expect(canceled.cases[0]).toMatchObject({ state: "canceled", attemptId: null });
+    const late = workspaceReducer(canceled, { type: "analyzed", caseId: "c1", attemptId: "a1", selection });
+    expect(late.cases[0].selection).toBeNull();
+  });
+
+  it("editing the sources advances the revision and discards the draft; changing the insurer discards the selection", () => {
+    const withSelection = workspaceReducer(workspaceReducer(confirmed, { type: "analyze-started", caseId: "c1", attemptId: "a1" }), { type: "analyzed", caseId: "c1", attemptId: "a1", selection });
+    const revision = withSelection.cases[0].revision;
+    const edited = workspaceReducer(withSelection, { type: "edit-selection", caseId: "c1", selection: { ...selection, diagnosisNoteIds: ["n1"] } });
+    expect(edited.cases[0]).toMatchObject({ revision: revision + 1, draft: null, state: "ready-to-generate" });
+    const reopened = workspaceReducer(edited, { type: "reopen-header", caseId: "c1" });
+    const reconfirmed = workspaceReducer(reopened, { type: "confirm-header", caseId: "c1" });
+    expect(reconfirmed.cases[0]).toMatchObject({ state: "ready-to-generate", selection: { diagnosisNoteIds: ["n1"] } });
+    const insurerChanged = workspaceReducer(edited, { type: "set-insurer", caseId: "c1", insurer: "pami" });
+    expect(insurerChanged.cases[0]).toMatchObject({ selection: null, state: "confirmation-required" });
+  });
+});

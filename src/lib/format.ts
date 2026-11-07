@@ -1,3 +1,4 @@
+import type { NoteKind, SelectedSpecialty } from "@/contracts/ai";
 import type { CaseState } from "@/contracts/case";
 
 export function formatDate(iso: string): string {
@@ -16,4 +17,21 @@ export const stateLabels: Record<CaseState, string> = {
   reviewed: "Revisado",
   error: "Error",
   canceled: "Cancelado",
+};
+
+export const noteKindLabels: Record<NoteKind, string> = {
+  report: "Informe completo",
+  "progress-note": "Nota de evolución",
+  administrative: "Administrativa o ausencia",
+  "prior-summary": "Resumen anterior",
+  ambiguous: "Tipo ambiguo",
+};
+
+export const flagLabels: Record<SelectedSpecialty["flags"][number]["code"], string> = {
+  "ambiguous-kind": "Tipo ambiguo",
+  "label-override": "Etiqueta corregida",
+  contradiction: "Contradicción",
+  undated: "Sin fecha confiable",
+  "no-clinical-content": "Sin contenido clínico",
+  "unknown-specialty": "Sin especialidad identificada",
 };

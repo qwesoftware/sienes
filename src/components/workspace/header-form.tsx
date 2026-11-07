@@ -63,6 +63,7 @@ export function HeaderForm({ record }: { record: CaseRecord }) {
           <FieldLabel htmlFor={`${record.id}-insurer`}>Obra social destino</FieldLabel>
           <Select
             value={record.insurer}
+            items={insurerLabels}
             disabled={locked}
             onValueChange={(value) => {
               const parsed = insurerSchema.safeParse(value);

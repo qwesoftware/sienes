@@ -6,6 +6,8 @@ import type { NextConfig } from "next";
 config({ path: ".env.dev" });
 
 const nextConfig: NextConfig = {
+  // Prompt modules are read from disk at runtime; keep them in the function bundle.
+  outputFileTracingIncludes: { "/api/**": ["./prompts/**/*"] },
   turbopack: {
     rules: {
       "*.css": {
