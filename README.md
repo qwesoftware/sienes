@@ -10,19 +10,38 @@ Version 1 is built and verified locally ([Application v1 build](docs/specs/app-v
 
 ## Run locally
 
-Requirements: Node 22+, pnpm 10, Docker Desktop, Python `pre-commit`.
+Requirements: Node 22+, pnpm 10, Docker Desktop (running), Python `pre-commit`.
+
+First time on a clone:
 
 ```bash
 pnpm install
-cp .env.example .env.dev      # then set OPENAI_API_KEY if AI_PROVIDER=openai
+cp .env.example .env.dev      # set OPENAI_API_KEY; AI_PROVIDER=openai uses the real model, mock a deterministic stand-in
 pnpm db:up                    # Postgres 17 in Docker
 pnpm db:migrate
 ADMIN_EMAIL=you@example.com ADMIN_NAME="Your Name" ADMIN_PASSWORD='at least 10 chars' pnpm db:seed   # first administrator
-pnpm dev                      # http://localhost:3000
 pre-commit install            # once per clone
 ```
 
-`pnpm verify` runs typecheck, lint, Vitest and Playwright; it must be green before a slice is committed. Test commands: `pnpm test`, `pnpm e2e`. `pnpm ai:smoke` runs the real model on a synthetic fixture when `AI_PROVIDER=openai`.
+Every session:
+
+```bash
+pnpm db:up                    # no-op if Postgres is already running
+pnpm dev                      # http://localhost:3000, reads .env.dev
+```
+
+`pnpm dev` only starts the web server; the database must be up first. Sign in with the seeded administrator: the first sign-in asks for a new password. Stop the database with `pnpm db:down`; the data stays in the Docker volume.
+
+### Create users
+
+1. Sign in as an administrator and open **Usuarios** in the header.
+2. **Nuevo usuario**: name, email and role (Usuario or Administrador). The temporary password is shown once; pass it on to the person.
+3. The person signs in with it and is forced to set their own password before using the app.
+4. From the same page an administrator can disable or re-enable a user and reset a password (a new temporary one is shown once).
+
+Running `pnpm db:seed` again with another email creates another administrator; with an existing email it does nothing.
+
+`pnpm verify` runs typecheck, lint, Vitest and Playwright (always with the mock model); it must be green before a slice is committed. Test commands: `pnpm test`, `pnpm e2e`. `pnpm ai:smoke` runs the real model on a synthetic fixture when `AI_PROVIDER=openai`.
 
 ## Deploy (prepared, not executed)
 
