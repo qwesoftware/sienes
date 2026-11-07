@@ -1,6 +1,7 @@
 "use client";
 
 import { TriangleAlert } from "lucide-react";
+import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useWorkspace } from "@/case/store";
@@ -57,6 +58,11 @@ export function SourcesPanel({ record, readOnly = false }: { record: CaseRecord;
 
   return (
     <section className="flex max-w-4xl flex-col gap-8" aria-label="Fuentes propuestas">
+      {readOnly ? null : (
+        <p className="max-w-prose text-sm text-muted-foreground">
+          El resumen se escribe solo con las notas elegidas acá: la principal y las de apoyo de cada especialidad, y las de Diagnóstico, Antecedentes y Medicación.
+        </p>
+      )}
       <div>
         <div className={cn(rowGrid, "hidden border-b pb-2 text-sm text-muted-foreground md:grid")}>
           <p>Especialidad</p>
@@ -124,9 +130,13 @@ export function SourcesPanel({ record, readOnly = false }: { record: CaseRecord;
                       </span>
                     </p>
                   ))}
-                  <Disclosure summary={`Ver ${noteKindLabels[specialty.primaryKind].toLowerCase()}${specialty.supportingNoteIds.length > 0 ? ` · ${plural(specialty.supportingNoteIds.length, "nota de apoyo", "notas de apoyo")}` : ""}`}>
-                    <div className="flex flex-col gap-3">
-                      {primary ? <p className="max-w-prose rounded-lg bg-muted p-3 whitespace-pre-wrap">{primary.text}</p> : null}
+                  {primary ? (
+                    <Disclosure summary={`Leer ${noteKindLabels[specialty.primaryKind].toLowerCase()}`}>
+                      <NoteText note={primary} />
+                    </Disclosure>
+                  ) : null}
+                  {readOnly && specialty.supportingNoteIds.length === 0 ? null : (
+                    <Disclosure summary={plural(specialty.supportingNoteIds.length, "nota de apoyo", "notas de apoyo")}>
                       <NoteChecklist
                         readOnly={readOnly}
                         label={`Notas de apoyo de ${specialty.specialtyLabel}`}
@@ -134,8 +144,8 @@ export function SourcesPanel({ record, readOnly = false }: { record: CaseRecord;
                         checked={specialty.supportingNoteIds}
                         onChange={(id, on) => updateSpecialty(index, { supportingNoteIds: toggle(specialty.supportingNoteIds, id, on) })}
                       />
-                    </div>
-                  </Disclosure>
+                    </Disclosure>
+                  )}
                 </div>
               </li>
             );
@@ -173,8 +183,13 @@ export function SourcesPanel({ record, readOnly = false }: { record: CaseRecord;
   );
 }
 
+function NoteText({ note }: { note: Note }) {
+  return <p className="max-w-prose rounded-lg bg-muted p-3 whitespace-pre-wrap">{note.text}</p>;
+}
+
 // The chosen notes first, the rest behind "Agregar nota" so a long export does
-// not turn every group into a wall of checkboxes.
+// not turn every group into a wall of checkboxes. A note unchecked here stays
+// in its place, so it can be checked again, and every note opens to its text.
 function NoteChecklist({
   label,
   notes,
@@ -188,18 +203,33 @@ function NoteChecklist({
   onChange: (id: string, on: boolean) => void;
   readOnly: boolean;
 }) {
-  const row = (n: Note) => (
-    <label key={n.id} className="flex items-center gap-2 text-sm tabular-nums">
-      <Checkbox checked={checked.includes(n.id)} onCheckedChange={(on) => onChange(n.id, on === true)} />
-      {noteCaption(n)}
-    </label>
-  );
-  const chosen = notes.filter((n) => checked.includes(n.id));
-  const others = notes.filter((n) => !checked.includes(n.id));
+  const [shown, setShown] = useState(() => new Set(checked));
+  const row = (n: Note) => {
+    const on = checked.includes(n.id);
+    return (
+      <div key={n.id} className="flex items-start gap-2">
+        <Checkbox
+          className="mt-0.5"
+          aria-label={`Usar la nota del ${noteCaption(n)}`}
+          checked={on}
+          onCheckedChange={(value) => {
+            if (value === true) setShown((s) => new Set(s).add(n.id));
+            onChange(n.id, value === true);
+          }}
+        />
+        <Disclosure className="min-w-0 flex-1" summary={<span className={cn("tabular-nums", on ? "text-foreground" : "text-muted-foreground")}>{noteCaption(n)}</span>}>
+          <NoteText note={n} />
+        </Disclosure>
+      </div>
+    );
+  };
+  const chosen = notes.filter((n) => checked.includes(n.id) || shown.has(n.id));
+  const others = notes.filter((n) => !chosen.includes(n));
   if (readOnly) {
-    return chosen.length > 0 ? (
+    const used = notes.filter((n) => checked.includes(n.id));
+    return used.length > 0 ? (
       <ul className="flex flex-col gap-3 text-sm" aria-label={label}>
-        {chosen.map((n) => (
+        {used.map((n) => (
           <li key={n.id}>
             <p className="text-xs text-muted-foreground tabular-nums">{noteCaption(n)}</p>
             <p className="mt-1 max-w-prose whitespace-pre-wrap">{n.text}</p>

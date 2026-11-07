@@ -159,6 +159,23 @@ test("the reviewer analyzes the export and adjusts the proposed sources", async 
   await expect(primary).toContainText("14/10/2026");
   await expect(page.getByTestId("case-state")).toHaveText("Revisar fuentes");
 
+  // A supporting note can be read, and once unchecked it stays where it was so it can be checked again.
+  await kine.getByText("0 notas de apoyo").click();
+  const support = kine.getByRole("group", { name: "Notas de apoyo de Kinesiología" });
+  await support.getByText(/^Agregar nota \(\d+\)$/).click();
+  const added = support.getByRole("checkbox").first();
+  const name = (await added.getAttribute("aria-label"))!;
+  const remaining = `Agregar nota (${(await support.getByRole("checkbox").count()) - 1})`;
+  await added.click();
+  await expect(kine.getByText("1 nota de apoyo")).toBeVisible();
+  await expect(support.getByText(remaining)).toBeVisible();
+  await support.getByRole("checkbox", { name }).click();
+  await expect(kine.getByText("0 notas de apoyo")).toBeVisible();
+  await expect(support.getByRole("checkbox", { name })).not.toBeChecked();
+  await expect(support.getByText(remaining)).toBeVisible();
+  await support.getByText(name.replace("Usar la nota del ", ""), { exact: true }).first().click();
+  await expect(support.locator("details[open] p").first()).not.toBeEmpty();
+
   // With a draft the sources are read-only; changing them asks first and discards the draft.
   await page.getByRole("button", { name: "Generar resumen" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Revisar resumen");

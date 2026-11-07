@@ -14,13 +14,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Spinner } from "@/components/ui/spinner";
 import { pendingSummary } from "@/case/pending";
 import { useWorkspace } from "@/case/store";
 import type { CaseRecord } from "@/case/types";
 import { DraftEditor } from "./draft-editor";
 import { MainAction } from "./main-action";
+import { RunNotice } from "./run-notice";
 import { StepActions, StepBody } from "./step-actions";
 import { useFocusWhen } from "./use-focus-when";
 
@@ -50,19 +49,8 @@ export function DraftStep({ record, onCopy }: { record: CaseRecord; onCopy: () =
   if (record.state === "generating") {
     return (
       <>
-        <StepBody className="flex max-w-3xl flex-col gap-3">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </StepBody>
-        <StepActions
-          status={
-            <span className="flex items-center gap-2" role="status">
-              <Spinner aria-hidden /> Generando el resumen…
-            </span>
-          }
-        >
+        <RunNotice title="Generando el resumen…" detail="Se escribe solo con las notas elegidas en Fuentes. Después lo revisás antes de copiarlo." />
+        <StepActions>
           <Button variant="outline" onClick={() => cancelAttempt(record.id)}>
             {batchRunning ? "Cancelar este caso" : "Cancelar"}
           </Button>

@@ -13,11 +13,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/case/store";
 import type { CaseRecord } from "@/case/types";
+import { plural } from "@/lib/format";
 import { MainAction } from "./main-action";
+import { RunNotice } from "./run-notice";
 import { SourcesPanel } from "./sources-panel";
 import { StepActions, StepBody } from "./step-actions";
 import { useFocusWhen } from "./use-focus-when";
@@ -31,18 +31,11 @@ export function SourcesStep({ record, onContinue }: { record: CaseRecord; onCont
   if (record.state === "analyzing") {
     return (
       <>
-        <StepBody className="flex max-w-4xl flex-col gap-3">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-10 w-full" />
-          ))}
-        </StepBody>
-        <StepActions
-          status={
-            <span className="flex items-center gap-2">
-              <Spinner aria-hidden /> Analizando las notas…
-            </span>
-          }
-        >
+        <RunNotice
+          title={`Analizando ${plural(record.parsed?.notes.length ?? 0, "nota", "notas")}…`}
+          detail="Se propone la nota principal y las notas de apoyo de cada especialidad. Las revisás antes de que se escriba el resumen."
+        />
+        <StepActions>
           <Button variant="outline" onClick={() => cancelAttempt(record.id)}>
             {batchRunning ? "Cancelar este caso" : "Cancelar"}
           </Button>
