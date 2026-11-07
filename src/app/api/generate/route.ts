@@ -9,6 +9,9 @@ import { recordEvent } from "@/lib/feedback";
 import { handle } from "@/lib/http";
 import { requireUser } from "@/lib/session";
 
+// One attempt is capped at GENERATION_TIMEOUT_MS (120 s); the function needs headroom for it.
+export const maxDuration = 150;
+
 export const POST = handle(async (request) => {
   const session = await requireUser(request.headers);
   const startedAt = Date.now();

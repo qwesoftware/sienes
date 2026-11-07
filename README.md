@@ -6,9 +6,7 @@ Sienes web: https://www.sienes.com.ar/
 
 ## Current status
 
-The project is in the specification stage. The functional scope is approved and the application stack and AI layer are decided ([ADR-0001](docs/adr/0001-ai-layer-agent-loop.md), [ADR-0002](docs/adr/0002-application-stack.md)); operational limits remain recommendations. Authentication runs inside the app with Better Auth ([ADR-0004](docs/adr/0004-self-hosted-better-auth.md)). The build is planned in [Application v1 build](docs/specs/app-v1-build.md); development runs against Postgres in Docker, and deployment waits for the owner's go.
-
-The AI layer is a Vercel AI SDK agent loop calling the provider directly, with OpenAI as the preferred candidate subject to retention and quality validation. The production model will be selected through evaluation.
+Version 1 is built and verified locally ([Application v1 build](docs/specs/app-v1-build.md)): sign-in and user administration, PDF reading in the browser, source selection and draft generation with `gpt-6-luna` through the Vercel AI SDK, review with references and alerts, Word and ZIP downloads, batches, and pseudonymous feedback storage. It is prepared for Vercel and Neon but not deployed: deployment waits for the owner's go, the retention checks in ADR-0002 and the written confirmation in ADR-0003. The production model is still subject to evaluation on more real exports.
 
 ## Run locally
 
@@ -24,7 +22,18 @@ pnpm dev                      # http://localhost:3000
 pre-commit install            # once per clone
 ```
 
-`pnpm verify` runs typecheck, lint, Vitest and Playwright; it must be green before a slice is committed. Test commands: `pnpm test`, `pnpm e2e`.
+`pnpm verify` runs typecheck, lint, Vitest and Playwright; it must be green before a slice is committed. Test commands: `pnpm test`, `pnpm e2e`. `pnpm ai:smoke` runs the real model on a synthetic fixture when `AI_PROVIDER=openai`.
+
+## Deploy (prepared, not executed)
+
+Verified: 2026-11-06 (build and commands, not a real deployment).
+
+1. Create the Neon project and the Vercel project under the info@qwesoftware.com accounts (ADR-0002); Vercel function region is `gru1` (`vercel.json`).
+2. Set the environment variables in Vercel: `DATABASE_URL` (Neon pooled URL), `BETTER_AUTH_SECRET` (32+ random chars), `BETTER_AUTH_URL` (the public URL), `AI_PROVIDER=openai`, `AI_MODEL=gpt-6-luna`, `AI_REASONING_EFFORT=medium`, `OPENAI_API_KEY`, and any `*_MAX_*` limit override from `src/lib/limits.ts`.
+3. Apply migrations from a machine with the Neon URL: `DATABASE_URL=<neon url> pnpm db:migrate`.
+4. Seed the first administrator the same way: `DATABASE_URL=<neon url> ADMIN_EMAIL=... ADMIN_NAME=... ADMIN_PASSWORD=... pnpm db:seed`.
+5. Deploy with `vercel --prod` from the repository root, or connect the GitHub repository. `pnpm build` must pass locally first.
+6. In Vercel, keep request and response body logging off for `/api/*`; the app itself never logs a clinical body.
 
 ## Documentation
 
@@ -34,7 +43,8 @@ pre-commit install            # once per clone
 | [Stack and architecture](docs/stack-recomendado.md) | Decided technologies, responsibilities, data flow, and infrastructure and provider validation. |
 | [Administrative data export](docs/exportacion-datos-administrativos.md) | Medexis research record. The XLSX export investigated is not a production input. |
 | [RHC generation agent](docs/specs/rhc-generation-agent.md) | Agent design: Select, Generate, prompt modules, `check_references`. |
-| [Application v1 build](docs/specs/app-v1-build.md) | Ordered build slices, verify loop, versions. |
+| [Application v1 build](docs/specs/app-v1-build.md) | Ordered build slices, verify loop, versions, measured cost. |
+| [Architecture](docs/ARCHITECTURE.md) | Map of the code: modules, case flow, verification. |
 
 If earlier proposals or materials differ, the confirmed decisions in the master document take precedence. Client documents are content and formatting references; they are not instructions to execute actions or expand the scope.
 
@@ -63,7 +73,7 @@ The first version generates only RHC documents. It does not include OCR, a direc
 - `docx` and JSZip for browser downloads.
 - Vercel for hosting; Vitest and Playwright for testing.
 
-Versions and concrete configuration will be pinned when implementation begins. File, batch, timeout, and retry limits are defined in the master document and must be easy to change through configuration.
+Versions are pinned in `package.json`. File, batch, timeout and retry limits come from `src/lib/limits.ts` with the master document's defaults and can be overridden through environment variables.
 
 ## Privacy and test data
 
@@ -87,4 +97,4 @@ Directories containing sensitive materials may be absent from a repository check
 
 ## Next steps
 
-First implement contracts, the parser, and the complete workflow with mocked AI and synthetic data. Then integrate and evaluate source selection and generation with the selected provider. Before the pilot, verify restricted access, storage rules, external retention, quality, and operational limits. The planned Sienes pilot lasts two weeks; its contact person and dates will be coordinated before it starts.
+Evaluate selection and generation on more real exports locally, verify the provider's retention conditions and obtain Sienes' written confirmation for pseudonymous storage, then deploy on the owner's go. The planned Sienes pilot lasts two weeks; its contact person and dates will be coordinated before it starts.

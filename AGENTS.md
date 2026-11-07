@@ -1,6 +1,6 @@
 # Sienes RHC assistant
 
-Draft clinical history summaries (RHC) from Medexis PDF exports, reviewed by Sienes staff. Build plan in `docs/specs/app-v1-build.md`; the app lives at the repository root.
+Draft clinical history summaries (RHC) from Medexis PDF exports, reviewed by Sienes staff. The app lives at the repository root; the code map is `docs/ARCHITECTURE.md`, the build record is `docs/specs/app-v1-build.md`. Deployment is prepared (`vercel.json`, README runbook) but must not be executed without the owner's go.
 
 ## Read first
 

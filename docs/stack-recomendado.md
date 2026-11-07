@@ -1,6 +1,6 @@
 # Recommended Stack for the RHC Assistant
 
-Status: stack and AI layer decided on November 6, 2026 ([ADR-0001](adr/0001-ai-layer-agent-loop.md), [ADR-0002](adr/0002-application-stack.md)); operational limits are recommendations; AI provider and model pending validation. Audience: developers.
+Status: stack and AI layer decided on November 6, 2026 ([ADR-0001](adr/0001-ai-layer-agent-loop.md), [ADR-0002](adr/0002-application-stack.md)) and implemented; the code map is in [ARCHITECTURE.md](ARCHITECTURE.md). Operational limits are the configured defaults; the AI model is pending evaluation on more real exports. Audience: developers.
 
 ## Recommendation
 

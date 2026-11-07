@@ -1,6 +1,6 @@
 # RHC generation agent
 
-Status: draft · Updated: 2026-11-06
+Status: building · Updated: 2026-11-06
 
 ## Problem
 Sienes staff write each PAMI renewal by hand: they read about two months of Medexis history, find the latest meaningful entry per specialty, and type the "Indicaciones" text plus the diagnosis and prestación fields into the portal. Notes are often mislabeled, so the content, not the type or author label, says what a note is. The app must produce a faithful draft with references, never inventing, and its rules must be easy to change after the pilot.
@@ -38,12 +38,12 @@ flowchart LR
 ```
 
 ## Slices
-1. [ ] Contracts and one synthetic case fixture (header, mislabeled notes across three specialties, an image-only page). Verify: Vitest parses the fixture with the schemas and rejects a draft whose reference points at no source.
-2. [ ] Select run end to end with the AI SDK mock model, from route handler to a screen listing proposed sources per specialty with flags, editable by the reviewer. Verify: Playwright on the fixture; a unit test asserts a label override is flagged.
-3. [ ] Generate run with mock model, prompt modules and `check_references`; draft shown by section with references, diagnosis and prestación fields, copy buttons, Word download. Verify: test that the insurer selects the expected modules and records their versions; a dangling reference becomes an alert, never a silent draft.
-4. [ ] Pseudonymous feedback: ratings per section and field, draft and corrected text saved under a random case id on review confirmation. Verify: integration test that the stored row contains no header field and no file name.
-5. [ ] Real provider in the development environment on the synthetic fixture: 120 s timeout per attempt, one browser-driven retry, cancellation, telemetry with model and module versions. Verify: a cancelled attempt's late response is discarded.
-6. [ ] Evaluation on local real exports in the authorized environment: fidelity, specialty coverage, corrections, latency, cost; model chosen. Verify: rubric completed for the available cases; CI contains no clinical content.
+1. [x] Contracts and one synthetic case fixture (header, mislabeled notes across three specialties, an image-only page). Verify: Vitest parses the fixture with the schemas and rejects a draft whose reference points at no source.
+2. [x] Select run end to end with the AI SDK mock model, from route handler to a screen listing proposed sources per specialty with flags, editable by the reviewer. Verify: Playwright on the fixture; a unit test asserts a label override is flagged.
+3. [x] Generate run with mock model, prompt modules and `check_references`; draft shown by section with references, diagnosis and prestación fields, copy buttons, Word download. Verify: test that the insurer selects the expected modules and records their versions; a dangling reference becomes an alert, never a silent draft.
+4. [x] Pseudonymous feedback: ratings per section and field, draft and corrected text saved under a random case id on review confirmation. Verify: integration test that the stored row contains no header field and no file name.
+5. [x] Real provider in the development environment on the synthetic fixture: 120 s timeout per attempt, one browser-driven retry, cancellation, telemetry with model and module versions. Verify: a cancelled attempt's late response is discarded.
+6. [ ] Evaluation on local real exports (one export available so far; see the measured figures in [Application v1 build](app-v1-build.md)) in the authorized environment: fidelity, specialty coverage, corrections, latency, cost; model chosen. Verify: rubric completed for the available cases; CI contains no clinical content.
 
 ## Out of scope
 - Admissions, treatment plans, OCR or vision on scanned pages, external tools, sessions or memory, OME issuance, portal automation, insurer-specific forms.

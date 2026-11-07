@@ -11,6 +11,9 @@ import { requireUser } from "@/lib/session";
 
 // Clinical endpoints: authenticate, enforce limits, process in memory, never
 // cache and never log a body.
+// One attempt is capped at GENERATION_TIMEOUT_MS (120 s); the function needs headroom for it.
+export const maxDuration = 150;
+
 export const POST = handle(async (request) => {
   const session = await requireUser(request.headers);
   const startedAt = Date.now();

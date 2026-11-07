@@ -1,6 +1,6 @@
 # Application v1 build
 
-Status: building · Updated: 2026-11-06
+Status: shipped (deployment pending the owner's go) · Updated: 2026-11-06
 
 ## Problem
 The functional scope, stack and agent design are decided (master document, ADR-0001 to ADR-0004, [RHC generation agent](rhc-generation-agent.md)) but no code exists. This plan orders the whole first version into vertical slices that can each be built, verified locally and committed, ending in an app that is ready to deploy but not deployed.
@@ -44,7 +44,7 @@ flowchart LR
 7. [x] **Feedback storage**: tables for RHC cases, ratings, edit events and technical events; written on review confirmation under a random case id; failure never blocks download. Verify: integration test proves the stored row has no header field and no file name; a simulated storage failure still allows download and shows a notice.
 8. [x] **Batch**: multi-file queue in tab memory, concurrency 2, per-case states, retry only failed cases, cancel in flight, ZIP of reviewed cases only with excluded cases listed. Verify: Playwright runs three fixtures with one forced failure and downloads a ZIP with two documents.
 9. [x] **Real model**: `gpt-6-luna` adapter with timeout, browser-driven single retry, cancellation, telemetry with model and module versions; `pnpm ai:smoke` on a synthetic fixture; then real exports through the app locally, reporting tokens, cost and latency per case and stopping at the budget. Verify: late-response test; smoke output passes the result schema; cost per case measured and recorded in the spec.
-10. [ ] **Deploy-ready**: `vercel.json` (`gru1`, no body logging), env var list, `pnpm db:migrate` for Neon, README runbook (`Verified:` date), `docs/ARCHITECTURE.md`, spec statuses updated. Verify: `pnpm build` succeeds; README commands run from a clean clone.
+10. [x] **Deploy-ready**: `vercel.json` (`gru1`, no body logging), env var list, `pnpm db:migrate` for Neon, README runbook (`Verified:` date), `docs/ARCHITECTURE.md`, spec statuses updated. Verify: `pnpm build` succeeds; README commands run from a clean clone.
 
 ## Out of scope
 - Deployment, Neon and Vercel project creation, email sending, OCR, insurer-specific forms, Medexis integration, portal automation.
