@@ -32,14 +32,9 @@ pnpm dev                      # http://localhost:3000, reads .env.dev
 
 `pnpm dev` only starts the web server; the database must be up first. Sign in with the seeded administrator: the first sign-in asks for a new password. Stop the database with `pnpm db:down`; the data stays in the Docker volume.
 
-### Create users
+### Users
 
-1. Sign in as an administrator and open **Usuarios** in the header.
-2. **Nuevo usuario**: name, email and role (Usuario or Administrador). The temporary password is shown once; pass it on to the person.
-3. The person signs in with it and is forced to set their own password before using the app.
-4. From the same page an administrator can disable or re-enable a user and reset a password (a new temporary one is shown once).
-
-Running `pnpm db:seed` again with another email creates another administrator; with an existing email it does nothing.
+There is no public sign-up: an administrator creates every account. Two roles: **Usuario** works on cases; **Administrador** works on cases too and also manages accounts from **Usuarios** in the header (create, disable, reset a password). Locally, the seeded administrator opens **Usuarios** → **Nuevo usuario**, enters **Nombre**, **Email** and **Rol**, presses **Crear** and passes on the temporary password shown once; the person sets their own password at first sign-in. The full procedure, including production, departures and forgotten passwords, is in [Users](docs/users.md).
 
 `pnpm verify` runs typecheck, lint, Vitest and Playwright (always with the mock model); it must be green before a slice is committed. Test commands: `pnpm test`, `pnpm e2e`. `pnpm ai:smoke` runs the real model on a synthetic fixture when `AI_PROVIDER=openai`.
 
@@ -50,7 +45,7 @@ Verified: 2026-11-06 (build and commands, not a real deployment).
 1. Create the Neon project and the Vercel project under the info@qwesoftware.com accounts (ADR-0002); Vercel function region is `gru1` (`vercel.json`).
 2. Set the environment variables in Vercel: `DATABASE_URL` (Neon pooled URL), `BETTER_AUTH_SECRET` (32+ random chars), `BETTER_AUTH_URL` (the public URL), `AI_PROVIDER=openai`, `AI_MODEL=gpt-6-luna`, `AI_REASONING_EFFORT=medium`, `OPENAI_API_KEY`, and any `*_MAX_*` limit override from `src/lib/limits.ts`.
 3. Apply migrations from a machine with the Neon URL: `DATABASE_URL=<neon url> pnpm db:migrate`.
-4. Seed the first administrator the same way: `DATABASE_URL=<neon url> ADMIN_EMAIL=... ADMIN_NAME=... ADMIN_PASSWORD=... pnpm db:seed`.
+4. Seed the first administrator once: `DATABASE_URL=<neon pooled url> ADMIN_EMAIL=... ADMIN_NAME=... ADMIN_PASSWORD=... pnpm db:seed`, then create the staff accounts as in [Users: Production](docs/users.md#production).
 5. Deploy with `vercel --prod` from the repository root, or connect the GitHub repository. `pnpm build` must pass locally first.
 6. In Vercel, keep request and response body logging off for `/api/*`; the app itself never logs a clinical body.
 
@@ -64,6 +59,7 @@ Verified: 2026-11-06 (build and commands, not a real deployment).
 | [RHC generation agent](docs/specs/rhc-generation-agent.md) | Agent design: Select, Generate, prompt modules, `check_references`. |
 | [Application v1 build](docs/specs/app-v1-build.md) | Ordered build slices, verify loop, versions, measured cost. |
 | [Architecture](docs/ARCHITECTURE.md) | Map of the code: modules, case flow, verification. |
+| [Users](docs/users.md) | Account model, roles, and creating and disabling accounts locally and in production. |
 
 If earlier proposals or materials differ, the confirmed decisions in the master document take precedence. Client documents are content and formatting references; they are not instructions to execute actions or expand the scope.
 
