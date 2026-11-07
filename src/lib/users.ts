@@ -88,6 +88,22 @@ export async function createUserDirect(input: {
   return toRow(created);
 }
 
+// Resets a password without an admin session: used by `pnpm user:reset-password`
+// when no enabled administrator can do it from the app. Returns the temporary
+// password; every session of the user ends.
+export async function resetPasswordDirect(email: string): Promise<string> {
+  const [row] = await db.select({ id: user.id }).from(user).where(eq(user.email, email.toLowerCase()));
+  if (!row) throw new Error(`No existe un usuario con el email ${email}`);
+  const password = temporaryPassword();
+  await db
+    .update(account)
+    .set({ password: await hashPassword(password), updatedAt: new Date() })
+    .where(and(eq(account.userId, row.id), eq(account.providerId, "credential")));
+  await db.update(user).set({ mustChangePassword: true }).where(eq(user.id, row.id));
+  await db.delete(session).where(eq(session.userId, row.id));
+  return password;
+}
+
 export async function createUser(
   adminHeaders: Headers,
   input: NewUser,

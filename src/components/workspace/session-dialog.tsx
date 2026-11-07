@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import {
   AlertDialog,
@@ -48,8 +47,7 @@ function casesLine(n: number): string {
 
 // Controlled open with no onOpenChange: Escape and outside clicks cannot close it.
 function LockDialog() {
-  const router = useRouter();
-  const { state, dispatch, userEmail } = useWorkspace();
+  const { state, dispatch, userEmail, leave } = useWorkspace();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -61,21 +59,12 @@ function LockDialog() {
     const result = await authClient.signIn.email({ email: userEmail, password });
     setPending(false);
     if (result.error) {
-      setError(
-        result.error.code === "BANNED_USER"
-          ? "La cuenta está deshabilitada. Consultá con el administrador."
-          : "Contraseña incorrecta",
-      );
+      // A disabled account loses the tab: the clinical data must not stay with it.
+      if (result.error.code === "BANNED_USER") return leave("disabled");
+      setError("Contraseña incorrecta");
       return;
     }
     dispatch({ type: "unlock" });
-  }
-
-  async function onCloseAndClear() {
-    dispatch({ type: "clear-all" });
-    await authClient.signOut();
-    router.replace("/sign-in");
-    router.refresh();
   }
 
   return (
@@ -102,7 +91,7 @@ function LockDialog() {
             {error ? <FieldError>{error}</FieldError> : null}
           </Field>
           <AlertDialogFooter>
-            <Button type="button" variant="outline" disabled={pending} onClick={onCloseAndClear}>
+            <Button type="button" variant="outline" disabled={pending} onClick={() => leave()}>
               Cerrar y borrar
             </Button>
             <Button type="submit" disabled={pending || !password}>

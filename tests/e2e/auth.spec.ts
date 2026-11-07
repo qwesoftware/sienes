@@ -46,11 +46,19 @@ test("admin creates a user, the user must change the temporary password, and a d
   await expect(staffPage.getByText("Sin casos")).toBeVisible();
   await expect(staffPage.getByRole("link", { name: "Usuarios" })).toHaveCount(0);
 
-  // The admin disables the user; the user's next navigation ends at sign-in and sign-in is refused.
+  // The user has a case loaded when the admin disables the account: the next
+  // clinical call clears the tab, explains at sign-in, and sign-in is refused.
+  await staffPage.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-b-renovacion-pami.pdf");
+  await expect(staffPage.getByTestId("case-state")).toHaveText("Confirmar datos");
+  await staffPage.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
+  await expect(staffPage.getByTestId("case-state")).toHaveText("Listo para analizar");
   const row = page.getByTestId(`user-row-${email}`);
   await row.getByRole("button", { name: "Deshabilitar" }).click();
   await expect(row).toContainText("Deshabilitado");
-  await staffPage.reload();
+  await staffPage.getByRole("button", { name: "Analizar fuentes" }).click();
+  await expect(staffPage).toHaveURL(/\/sign-in\?motivo=expired$/);
+  await expect(staffPage.getByRole("status")).toContainText("La sesión terminó y la pestaña se vació.");
+  await staffPage.goto("/");
   await expect(staffPage).toHaveURL(/\/sign-in$/);
   await signIn(staffPage, email, "staff-new-password-1");
   await expect(staffPage.locator("form").getByRole("alert")).toContainText("deshabilitada");

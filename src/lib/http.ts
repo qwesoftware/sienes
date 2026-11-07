@@ -2,17 +2,19 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
 // Errors that carry a status and a Spanish message safe to show to the user.
+// `code` names the cause when the browser must act on it, not only show it.
 export class HttpError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    public readonly code?: string,
   ) {
     super(message);
   }
 }
 
-export function jsonError(status: number, message: string) {
-  return NextResponse.json({ error: message }, { status });
+export function jsonError(status: number, message: string, code?: string) {
+  return NextResponse.json(code ? { error: message, code } : { error: message }, { status });
 }
 
 // Wraps a route handler: known errors become JSON with their status, Zod
@@ -24,7 +26,7 @@ export function handle<Ctx>(fn: (request: Request, ctx: Ctx) => Promise<Response
     try {
       return await fn(request, ctx);
     } catch (err) {
-      if (err instanceof HttpError) return jsonError(err.status, err.message);
+      if (err instanceof HttpError) return jsonError(err.status, err.message, err.code);
       if (err instanceof ZodError) return jsonError(400, "Datos inválidos");
       const status = typeof err === "object" && err && "status" in err ? err.status : undefined;
       if (status === 401 || status === "UNAUTHORIZED") return jsonError(401, "Sesión no válida");

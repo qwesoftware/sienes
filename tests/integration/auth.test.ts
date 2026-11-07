@@ -4,7 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { user } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { createUserDirect } from "@/lib/users";
+import { createUserDirect, resetPasswordDirect } from "@/lib/users";
+import { GET as authGet, POST as authPost } from "@/app/api/auth/[...all]/route";
 import { POST as changePassword } from "@/app/api/account/password/route";
 import { GET as listUsersRoute, POST as createUserRoute } from "@/app/api/admin/users/route";
 import { POST as userActionRoute } from "@/app/api/admin/users/[id]/route";
@@ -127,6 +128,40 @@ describe("authentication", () => {
     expect(await auth.api.getSession({ headers: await signIn(email, resetBody.temporaryPassword) })).not.toBeNull();
   });
 
+  it("answers only sign-in, sign-out and get-session on the Better Auth route", async () => {
+    const adminHeaders = await signIn(adminEmail, adminPassword);
+    const [me] = await db.select().from(user).where(eq(user.email, adminEmail));
+    const setRole = await authPost(json("/api/auth/admin/set-role", { userId: me.id, role: "user" }, adminHeaders));
+    expect(setRole.status).toBe(404);
+    const listUsers = await authGet(new Request("http://localhost/api/auth/admin/list-users", { headers: adminHeaders }));
+    expect(listUsers.status).toBe(404);
+    const [after] = await db.select().from(user).where(eq(user.id, me.id));
+    expect(after.role).toBe("admin");
+
+    const session = await authGet(new Request("http://localhost/api/auth/get-session", { headers: adminHeaders }));
+    expect(session.status).toBe(200);
+    const signedIn = await authPost(
+      new Request("http://localhost/api/auth/sign-in/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", origin: "http://localhost:3000" },
+        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+      }),
+    );
+    expect(signedIn.status).toBe(200);
+  });
+
+  it("resets a password from the command line without an admin session", async () => {
+    const email = `forgot-${suffix}@test.local`;
+    await createUserDirect({ name: "Forgot", email, password: "forgot-password-1", role: "admin", mustChangePassword: false });
+    const open = await signIn(email, "forgot-password-1");
+    const temporary = await resetPasswordDirect(email);
+    expect(await auth.api.getSession({ headers: open })).toBeNull();
+    await expect(auth.api.signInEmail({ body: { email, password: "forgot-password-1" } })).rejects.toBeDefined();
+    const fresh = await auth.api.getSession({ headers: await signIn(email, temporary) });
+    expect(fresh?.user.mustChangePassword).toBe(true);
+    await expect(resetPasswordDirect(`nobody-${suffix}@test.local`)).rejects.toThrow("No existe");
+  });
+
   it("never lets an admin disable their own account", async () => {
     const adminHeaders = await signIn(adminEmail, adminPassword);
     const [me] = await db.select().from(user).where(eq(user.email, adminEmail));
@@ -151,5 +186,8 @@ describe("authentication", () => {
     const [me] = await db.select().from(user).where(eq(user.email, adminEmail));
     const fromDisabled = await userActionRoute(json(`/api/admin/users/${me.id}`, { action: "disable" }, secondHeaders), paramsOf(me.id));
     expect(fromDisabled.status).toBe(401);
+    // Disabling revoked the session, so the tab sees an ended session; the
+    // code lets the browser clear the tab and explain.
+    expect(await fromDisabled.json()).toEqual({ error: "Sesión no válida", code: "expired" });
   });
 });

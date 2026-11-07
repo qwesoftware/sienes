@@ -1,8 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { GenerateResponse, SelectResponse } from "@/contracts/ai";
-import { apiFetch } from "@/lib/client-api";
+import { authClient } from "@/lib/auth-client";
+import { ApiError, apiFetch } from "@/lib/client-api";
 import { parseMedexis, ParseError } from "@/parser/medexis";
 import type { PublicLimits } from "@/lib/limits";
 import { createIdleTimer, type IdleTimer } from "./idle-timer";
@@ -26,6 +28,9 @@ type WorkspaceContextValue = {
   // Selects the next case in list order that is not reviewed or in error; false when none.
   selectNextPending: () => boolean;
   endSession: () => void;
+  // Clears the tab, signs out and goes to the sign-in screen; a reason is
+  // shown there ("expired": the login session ended, "disabled": the account).
+  leave: (reason?: SessionLostReason) => Promise<void>;
   notice: SessionNotice;
   continueWorking: () => void;
   // Clinical calls in flight pause the idle timer.
@@ -41,12 +46,23 @@ type WorkspaceContextValue = {
   cancelBatch: () => void;
 };
 
-// The browser transport: the app's own JSON endpoints.
-const httpTransport: Transport = {
-  select: (body, signal) => apiFetch<SelectResponse>("/api/select", { method: "POST", json: body, signal }),
-  generate: (body, signal) => apiFetch<GenerateResponse>("/api/generate", { method: "POST", json: body, signal }),
-  feedback: (body) => apiFetch("/api/feedback", { method: "POST", json: body }),
-};
+export type SessionLostReason = "expired" | "disabled";
+
+// The browser transport: the app's own JSON endpoints. A 401 means the login
+// session ended (also when the account was disabled, which revokes it): the
+// tab is cleared and the user sent to sign in, as master-doc requires.
+function httpTransport(onSessionLost: (reason: SessionLostReason) => void): Transport {
+  const call = <T,>(path: string, body: unknown, signal?: AbortSignal) =>
+    apiFetch<T>(path, { method: "POST", json: body, signal }).catch((err: unknown) => {
+      if (err instanceof ApiError && err.status === 401) onSessionLost(err.code === "disabled" ? "disabled" : "expired");
+      throw err;
+    });
+  return {
+    select: (body, signal) => call<SelectResponse>("/api/select", body, signal),
+    generate: (body, signal) => call<GenerateResponse>("/api/generate", body, signal),
+    feedback: (body) => call("/api/feedback", body),
+  };
+}
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
@@ -61,6 +77,7 @@ function randomId(): string {
 }
 
 export function WorkspaceProvider({ limits, userEmail, children }: { limits: PublicLimits; userEmail: string; children: React.ReactNode }) {
+  const router = useRouter();
   const [state, dispatch] = useReducer(workspaceReducer, initialWorkspace);
   const [notice, setNotice] = useState<SessionNotice>(null);
   const [batchIds, setBatchIds] = useState<string[] | null>(null);
@@ -71,8 +88,28 @@ export function WorkspaceProvider({ limits, userEmail, children }: { limits: Pub
   const hasCases = state.cases.length > 0;
   const locked = state.locked;
 
-  // Expiry locks the tab (the cases stay); while locked there is no timer,
-  // and unlocking starts a fresh one.
+  // The runner emits reducer actions; the store only adds the idle-timer
+  // pause. It lives in a ref because it is used from handlers and effects.
+  const runner = useRef<CaseRunner | null>(null);
+
+  const cancelBatch = useCallback(() => {
+    batchCanceled.current = true;
+    runner.current?.cancelAll();
+  }, []);
+
+  const leave = useCallback(
+    async (reason?: SessionLostReason) => {
+      cancelBatch();
+      dispatch({ type: "clear-all" });
+      await authClient.signOut();
+      router.replace(reason ? `/sign-in?motivo=${reason}` : "/sign-in");
+      router.refresh();
+    },
+    [cancelBatch, router],
+  );
+
+  // Expiry locks the tab (the cases stay) and cancels pending work; while
+  // locked there is no timer, and unlocking starts a fresh one.
   useEffect(() => {
     if (locked) return;
     const t = createIdleTimer({
@@ -80,6 +117,7 @@ export function WorkspaceProvider({ limits, userEmail, children }: { limits: Pub
       warningMs: limits.CLINICAL_IDLE_WARNING_MS,
       onWarn: (remainingMs) => setNotice({ kind: "warning", remainingMs }),
       onExpire: () => {
+        cancelBatch();
         setNotice(null);
         dispatch({ type: "lock" });
       },
@@ -95,7 +133,7 @@ export function WorkspaceProvider({ limits, userEmail, children }: { limits: Pub
       window.clearInterval(interval);
       t.stop();
     };
-  }, [dispatch, locked, limits.CLINICAL_IDLE_TIMEOUT_MS, limits.CLINICAL_IDLE_WARNING_MS]);
+  }, [cancelBatch, dispatch, locked, limits.CLINICAL_IDLE_TIMEOUT_MS, limits.CLINICAL_IDLE_WARNING_MS]);
 
   useEffect(() => {
     if (!hasCases) return;
@@ -129,12 +167,9 @@ export function WorkspaceProvider({ limits, userEmail, children }: { limits: Pub
     };
   }, []);
 
-  // The runner emits reducer actions; the store only adds the idle-timer
-  // pause. It lives in a ref because it is used from handlers and effects.
-  const runner = useRef<CaseRunner | null>(null);
   useEffect(() => {
-    runner.current = createRunner({ transport: httpTransport, emit: dispatch, retries: limits.GENERATION_MAX_RETRIES, onCall: beginClinicalCall });
-  }, [beginClinicalCall, limits.GENERATION_MAX_RETRIES]);
+    runner.current = createRunner({ transport: httpTransport((reason) => void leave(reason)), emit: dispatch, retries: limits.GENERATION_MAX_RETRIES, onCall: beginClinicalCall });
+  }, [beginClinicalCall, leave, limits.GENERATION_MAX_RETRIES]);
 
   const addFiles = useCallback(
     async (files: File[]) => {
@@ -205,11 +240,6 @@ export function WorkspaceProvider({ limits, userEmail, children }: { limits: Pub
     }
   }, [limits.BATCH_CONCURRENCY, state.cases]);
 
-  const cancelBatch = useCallback(() => {
-    batchCanceled.current = true;
-    runner.current?.cancelAll();
-  }, []);
-
   // Progress of the running batch: a case is done once it holds a draft or stopped in error.
   const batchProgress = useMemo(() => {
     if (!batchIds) return null;
@@ -219,8 +249,8 @@ export function WorkspaceProvider({ limits, userEmail, children }: { limits: Pub
   }, [batchIds, state.cases]);
 
   const value = useMemo<WorkspaceContextValue>(
-    () => ({ state, dispatch, limits, userEmail, addFiles, filePicker, selectNextPending, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchRunning: batchIds !== null, batchProgress, runBatch, cancelBatch }),
-    [state, limits, userEmail, addFiles, selectNextPending, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchIds, batchProgress, runBatch, cancelBatch],
+    () => ({ state, dispatch, limits, userEmail, addFiles, filePicker, selectNextPending, endSession, leave, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchRunning: batchIds !== null, batchProgress, runBatch, cancelBatch }),
+    [state, limits, userEmail, addFiles, selectNextPending, endSession, leave, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchIds, batchProgress, runBatch, cancelBatch],
   );
 
   // While locked the workspace is hidden from view and from assistive technology;

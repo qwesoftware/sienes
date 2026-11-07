@@ -12,7 +12,8 @@ export function isAdmin(user: Pick<AppUser, "role">): boolean {
 // Route handlers: throw so the `handle` wrapper answers 401/403.
 export async function requireUser(headers: Headers): Promise<Session> {
   const session = await auth.api.getSession({ headers });
-  if (!session || session.user.banned) throw new HttpError(401, "Sesión no válida");
+  if (!session) throw new HttpError(401, "Sesión no válida", "expired");
+  if (session.user.banned) throw new HttpError(401, "La cuenta está deshabilitada", "disabled");
   return session;
 }
 

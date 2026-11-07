@@ -32,11 +32,11 @@ Run after the Deploy steps in the [README](../README.md#deploy-prepared-not-exec
 4. They hand each person their temporary password in person or by phone; if that is not possible, by a direct message deleted once the person has signed in. Not by email: the email address is the user name, so one stored, forwardable message would carry both halves of the login.
 5. The person signs in and sets their own password at first sign-in.
 
-**Someone leaves:** press **Deshabilitar** on their row. All their sessions end at once; their next page load lands on **Ingresar**, and signing in shows "La cuenta está deshabilitada". In a tab they still have open, the next analyze or generate request fails with "Sesión no válida"; the work in that tab is not cleared until it is reloaded or closed, and a request already sent to the model cannot be recalled. **Habilitar** restores access with the same password.
+**Someone leaves:** press **Deshabilitar** on their row. All their sessions end at once; their next page load lands on **Ingresar**, and signing in shows "La cuenta está deshabilitada". In a tab they still have open, the next analyze or generate request clears the tab and lands on **Ingresar** with "La sesión terminó y la pestaña se vació"; a request already sent to the model cannot be recalled. **Habilitar** restores access with the same password.
 
 **Someone forgets their password:** press **Restablecer contraseña** on their row. It shows a new temporary password once, signs the person out everywhere and asks them for a new password at their next sign-in. Hand it over as in step 4.
 
-If the only administrator forgets their password, the app cannot recover it (the seed does nothing for an existing email); a developer has to intervene in the database. Keeping two enabled administrators avoids that.
+If no enabled administrator can do it (the only administrator forgot theirs), whoever runs the infrastructure resets it from a machine with the database connection string: `pnpm user:reset-password --email=<email>` prints a temporary password once, signs the person out everywhere and asks for a new password at the next sign-in. Keeping two enabled administrators avoids needing it.
 
 ## Who holds the administrator account (open)
 

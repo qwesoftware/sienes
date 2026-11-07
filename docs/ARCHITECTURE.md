@@ -41,7 +41,7 @@ flowchart LR
 4. The reviewer edits by section and field (edits tracked by kind with an optional reason), confirms "Revisé el contenido", then copies fields or downloads Word. The confirmation sends the generated and corrected drafts, ratings and edit events under the random case token; a storage failure only shows a notice.
 5. Batch: every confirmed case is processed with the proposed sources, two at a time; failed cases can be retried; the ZIP holds reviewed documents only.
 
-Each clinical call has an attempt id; the reducer applies a response only to the attempt still open, so cancelled or superseded responses are discarded. The browser performs one retry after a transient failure. After 30 minutes idle (5-minute warning) the tab locks: the cases stay in memory, hidden and inert, until the user re-enters the password (verified with a Better Auth sign-in) or chooses "Cerrar y borrar", which clears the tab and signs out.
+Each clinical call has an attempt id; the reducer applies a response only to the attempt still open, so cancelled or superseded responses are discarded. The browser performs one retry after a transient failure. After 30 minutes idle (5-minute warning) the tab locks and cancels the calls in flight and the rest of a batch: the cases stay in memory, hidden and inert, until the user re-enters the password (verified with a Better Auth sign-in) or chooses "Cerrar y borrar", which clears the tab and signs out. A 401 from any app endpoint (the login session ended, also when the account was disabled) clears the tab and lands on sign-in with the reason. The Better Auth HTTP route answers only sign-in, sign-out and get-session; admin operations run server-side through `auth.api` from the app's own routes.
 
 ## Verification
 

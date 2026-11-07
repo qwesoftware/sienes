@@ -7,6 +7,7 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    public readonly code?: string,
   ) {
     super(message);
   }
@@ -23,8 +24,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     body: json !== undefined ? JSON.stringify(json) : rest.body,
     cache: "no-store",
   });
-  const body = (await response.json().catch(() => ({}))) as { error?: string } & T;
-  if (!response.ok) throw new ApiError(response.status, body.error ?? `Error ${response.status}`);
+  const body = (await response.json().catch(() => ({}))) as { error?: string; code?: string } & T;
+  if (!response.ok) throw new ApiError(response.status, body.error ?? `Error ${response.status}`, body.code);
   return body;
 }
 
