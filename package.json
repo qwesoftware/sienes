@@ -16,7 +16,9 @@
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
-    "db:seed": "tsx --tsconfig tsconfig.json scripts/seed-admin.ts"
+    "db:seed": "tsx --tsconfig tsconfig.json scripts/seed-admin.ts",
+    "fixtures": "tsx --tsconfig tsconfig.json scripts/make-fixtures.ts",
+    "parse:real": "tsx --tsconfig tsconfig.json scripts/parse-real-exports.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "4.0.110",
