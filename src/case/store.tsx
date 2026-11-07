@@ -4,25 +4,30 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import type { GenerateResponse, SelectResponse } from "@/contracts/ai";
 import { apiFetch } from "@/lib/client-api";
 import { parseMedexis, ParseError } from "@/parser/medexis";
-import { extractPagesBrowser } from "@/parser/pdf-browser";
 import type { PublicLimits } from "@/lib/limits";
 import { createIdleTimer, type IdleTimer } from "./idle-timer";
 import { runQueue } from "./queue";
 import { initialWorkspace, workspaceReducer, type WorkspaceAction } from "./reducer";
 import { batchCandidates, createRunner, type CaseRunner, type Transport } from "./runner";
+import { nextPendingId } from "./summary";
 import type { WorkspaceState } from "./types";
 
-export type SessionNotice = { kind: "warning"; remainingMs: number } | { kind: "expired" } | null;
+export type SessionNotice = { kind: "warning"; remainingMs: number } | null;
 
 type WorkspaceContextValue = {
   state: WorkspaceState;
   dispatch: (action: WorkspaceAction) => void;
   limits: PublicLimits;
+  // The signed-in user's email, to verify the password when unlocking.
+  userEmail: string;
   addFiles: (files: File[]) => Promise<void>;
+  // The hidden file input of the upload zone, so other places can open the picker.
+  filePicker: React.RefObject<HTMLInputElement | null>;
+  // Selects the next case in list order that is not reviewed or in error; false when none.
+  selectNextPending: () => boolean;
   endSession: () => void;
   notice: SessionNotice;
   continueWorking: () => void;
-  dismissNotice: () => void;
   // Clinical calls in flight pause the idle timer.
   beginClinicalCall: () => () => void;
   analyze: (caseId: string) => Promise<void>;
@@ -55,26 +60,31 @@ function randomId(): string {
   return crypto.randomUUID();
 }
 
-export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; children: React.ReactNode }) {
+export function WorkspaceProvider({ limits, userEmail, children }: { limits: PublicLimits; userEmail: string; children: React.ReactNode }) {
   const [state, dispatch] = useReducer(workspaceReducer, initialWorkspace);
   const [notice, setNotice] = useState<SessionNotice>(null);
   const [batchIds, setBatchIds] = useState<string[] | null>(null);
   const batchCanceled = useRef(false);
   const timer = useRef<IdleTimer | null>(null);
   const inFlight = useRef(0);
+  const filePicker = useRef<HTMLInputElement | null>(null);
   const hasCases = state.cases.length > 0;
+  const locked = state.locked;
 
-  // The idle timer lives for the whole tab; expiry clears every case.
+  // Expiry locks the tab (the cases stay); while locked there is no timer,
+  // and unlocking starts a fresh one.
   useEffect(() => {
+    if (locked) return;
     const t = createIdleTimer({
       timeoutMs: limits.CLINICAL_IDLE_TIMEOUT_MS,
       warningMs: limits.CLINICAL_IDLE_WARNING_MS,
       onWarn: (remainingMs) => setNotice({ kind: "warning", remainingMs }),
       onExpire: () => {
-        dispatch({ type: "clear-all" });
-        setNotice({ kind: "expired" });
+        setNotice(null);
+        dispatch({ type: "lock" });
       },
     });
+    if (inFlight.current > 0) t.pause();
     timer.current = t;
     const touch = () => t.touch();
     const events: (keyof WindowEventMap)[] = ["pointerdown", "keydown", "wheel", "touchstart"];
@@ -85,7 +95,7 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
       window.clearInterval(interval);
       t.stop();
     };
-  }, [dispatch, limits.CLINICAL_IDLE_TIMEOUT_MS, limits.CLINICAL_IDLE_WARNING_MS]);
+  }, [dispatch, locked, limits.CLINICAL_IDLE_TIMEOUT_MS, limits.CLINICAL_IDLE_WARNING_MS]);
 
   useEffect(() => {
     if (!hasCases) return;
@@ -137,6 +147,8 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
           continue;
         }
         try {
+          // PDF.js loads on the first upload, not with the page.
+          const { extractPagesBrowser } = await import("@/parser/pdf-browser");
           const pages = await extractPagesBrowser(file, limits.PDF_MAX_PAGES);
           dispatch({ type: "parsed", caseId: id, parsed: parseMedexis(pages) });
         } catch (err) {
@@ -147,6 +159,12 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
     },
     [limits.BATCH_MAX_PATIENTS, limits.PDF_MAX_BYTES, limits.PDF_MAX_PAGES],
   );
+
+  const selectNextPending = useCallback(() => {
+    const id = nextPendingId(state.cases, state.selectedCaseId);
+    if (id) dispatch({ type: "select-case", caseId: id });
+    return id !== null;
+  }, [state.cases, state.selectedCaseId]);
 
   const recordOf = useCallback((caseId: string) => state.cases.find((c) => c.id === caseId), [state.cases]);
 
@@ -201,9 +219,17 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
   }, [batchIds, state.cases]);
 
   const value = useMemo<WorkspaceContextValue>(
-    () => ({ state, dispatch, limits, addFiles, endSession, notice, continueWorking, dismissNotice: () => setNotice(null), beginClinicalCall, analyze, generate, cancelAttempt, batchRunning: batchIds !== null, batchProgress, runBatch, cancelBatch }),
-    [state, limits, addFiles, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchIds, batchProgress, runBatch, cancelBatch],
+    () => ({ state, dispatch, limits, userEmail, addFiles, filePicker, selectNextPending, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchRunning: batchIds !== null, batchProgress, runBatch, cancelBatch }),
+    [state, limits, userEmail, addFiles, selectNextPending, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchIds, batchProgress, runBatch, cancelBatch],
   );
 
-  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
+  // While locked the workspace is hidden from view and from assistive technology;
+  // the lock dialog renders in a portal outside this wrapper.
+  return (
+    <WorkspaceContext.Provider value={value}>
+      <div inert={locked} className={locked ? "invisible" : undefined}>
+        {children}
+      </div>
+    </WorkspaceContext.Provider>
+  );
 }

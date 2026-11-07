@@ -1,4 +1,4 @@
-import { Document, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
+import { Document, Header as PageHeader, HeadingLevel, ImageRun, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
 import type { Header } from "@/contracts/case";
 import type { Draft } from "@/contracts/draft";
 import { formatDate } from "@/lib/format";
@@ -8,6 +8,8 @@ export type RhcDocumentInput = {
   insurerLabel: string;
   draft: Draft;
   dateRange: { from: string; to: string } | null;
+  // The Sienes logo PNG (435x125), placed in the page header; see `loadLogo`.
+  logo?: Uint8Array;
 };
 
 const cudLabels = { yes: "Sí", no: "No", unknown: "Sin información" } as const;
@@ -34,7 +36,7 @@ function paragraphs(text: string): Paragraph[] {
 // the reviewed sections, diagnosis and prestación fields, and a separate
 // pending-review section for alerts about missing information. Alerts are
 // never written as clinical facts.
-export function buildRhcDocument({ header, insurerLabel, draft, dateRange }: RhcDocumentInput): Document {
+export function buildRhcDocument({ header, insurerLabel, draft, dateRange, logo }: RhcDocumentInput): Document {
   const children: (Paragraph | Table)[] = [
     new Paragraph({ text: "Resumen de historia clínica", heading: HeadingLevel.HEADING_1 }),
     new Paragraph({
@@ -80,7 +82,29 @@ export function buildRhcDocument({ header, insurerLabel, draft, dateRange }: Rhc
     creator: "Sienes",
     title: "Resumen de historia clínica",
     styles: { default: { document: { run: { font: "Arial", size: 22 } } } },
-    sections: [{ children }],
+    sections: [
+      {
+        headers: logo
+          ? {
+              default: new PageHeader({
+                children: [
+                  new Paragraph({
+                    children: [
+                      new ImageRun({
+                        type: "png",
+                        data: logo,
+                        transformation: { width: 139, height: 40 },
+                        altText: { name: "Sienes", description: "Sienes, neurorehabilitación", title: "Sienes" },
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            }
+          : undefined,
+        children,
+      },
+    ],
   });
 }
 

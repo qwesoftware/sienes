@@ -1,5 +1,6 @@
 // Clinical-session idle timer: only user activity resets it, clinical calls
-// pause it, and expiry clears the tab. Pure so it can run on a fake clock.
+// pause it, and expiry calls onExpire once (the store locks the tab). Pure so
+// it can run on a fake clock.
 
 export type IdleTimerOptions = {
   timeoutMs: number;

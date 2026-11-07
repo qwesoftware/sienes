@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -126,7 +127,7 @@ export function UsersAdmin({ initialUsers, currentUserId }: { initialUsers: User
                       </Button>
                     ) : (
                       <Button variant="destructive" size="sm" disabled={busy || self} onClick={() => act(user, "disable")}>
-                        {busy ? <Spinner data-icon="inline-start" /> : null}
+                        {busy ? <Spinner data-icon="inline-start" aria-hidden /> : null}
                         Deshabilitar
                       </Button>
                     )}
@@ -173,7 +174,7 @@ function NewUserDialog({ onCreated }: { onCreated: (user: UserRow, password: str
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button />}>Nuevo usuario</DialogTrigger>
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <form onSubmit={onSubmit} className="flex flex-col gap-6" noValidate>
           <DialogHeader>
             <DialogTitle>Nuevo usuario</DialogTitle>
@@ -209,8 +210,9 @@ function NewUserDialog({ onCreated }: { onCreated: (user: UserRow, password: str
             </Alert>
           ) : null}
           <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Cancelar</DialogClose>
             <Button type="submit" disabled={pending || !name || !email}>
-              {pending ? <Spinner data-icon="inline-start" /> : null}
+              {pending ? <Spinner data-icon="inline-start" aria-hidden /> : null}
               Crear
             </Button>
           </DialogFooter>

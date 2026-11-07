@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import JSZip from "jszip";
 import { Packer } from "docx";
 import { describe, expect, it } from "vitest";
@@ -40,6 +41,20 @@ describe("RHC Word document", () => {
     }
     expect(xml).not.toContain("Referencia descartada");
     expect(xml).not.toContain("n1");
+  });
+
+  it("puts the logo in the page header when one is given", async () => {
+    const logo = new Uint8Array(readFileSync("public/logo-blue.png"));
+    const input = { header, insurerLabel: "OSDE", draft, dateRange: null };
+    const zip = await JSZip.loadAsync(await Packer.toBuffer(buildRhcDocument({ ...input, logo })));
+    const headers = zip.file(/^word\/header\d*\.xml$/);
+    expect(headers.length).toBeGreaterThan(0);
+    const xml = (await Promise.all(headers.map((f) => f.async("string")))).join("");
+    expect(xml).toContain("<w:drawing>");
+    expect(zip.file(/^word\/media\/.+\.png$/)).toHaveLength(1);
+
+    const plain = await JSZip.loadAsync(await Packer.toBuffer(buildRhcDocument(input)));
+    expect(plain.file(/^word\/media\//)).toHaveLength(0);
   });
 
   it("names the file after the patient without unsafe characters", () => {

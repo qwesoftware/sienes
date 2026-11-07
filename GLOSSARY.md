@@ -118,7 +118,7 @@ _Avoid_: orchestrator, service
 The version counter of a case's content. Edits, source changes and regeneration advance it; late responses from older revisions are discarded.
 
 **Clinical session**:
-The period during which clinical data lives in the tab, ended by 30 minutes of inactivity, sign-out, reload or closing the tab.
+The period during which clinical data lives in the tab, ended by finishing, sign-out, reload or closing the tab. After 30 minutes of inactivity the tab locks and keeps the cases until the password is entered again.
 _Avoid_: login session (managed by the identity provider)
 
 **Case id**:

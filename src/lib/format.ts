@@ -58,3 +58,8 @@ export const editReasonLabels: Record<NonNullable<EditEvent["reason"]>, string> 
   wording: "Redacción",
   "source-selection": "Selección de fuentes",
 };
+
+// "1 nota", "3 notas".
+export function plural(n: number, singular: string, pluralForm: string): string {
+  return `${n} ${n === 1 ? singular : pluralForm}`;
+}

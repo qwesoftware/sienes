@@ -1,24 +1,36 @@
 "use client";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/case/store";
 import type { CaseRecord } from "@/case/types";
+import { plural } from "@/lib/format";
 import { MainAction } from "./main-action";
 import { SourcesPanel } from "./sources-panel";
 import { useFocusWhen } from "./use-focus-when";
 
 // Step 2: the Select run and the reviewer's confirmation of the sources.
 export function AnalyzeStep({ record }: { record: CaseRecord }) {
-  const { analyze, cancelAttempt } = useWorkspace();
+  const { analyze, cancelAttempt, dispatch } = useWorkspace();
   const analyzeRef = useFocusWhen<HTMLButtonElement>(record.headerConfirmed && !record.selection && record.state !== "analyzing");
   if (!record.headerConfirmed) return null;
 
   if (record.state === "analyzing") {
     return (
-      <div className="flex items-center gap-3 text-sm text-muted-foreground" role="status">
-        <Spinner /> Analizando las notas…
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        <Spinner aria-hidden /> Analizando las notas…
         <Button variant="outline" size="sm" onClick={() => cancelAttempt(record.id)}>
           Cancelar
         </Button>
@@ -37,13 +49,28 @@ export function AnalyzeStep({ record }: { record: CaseRecord }) {
       {record.selection && record.draft ? (
         <details className="rounded-xl border px-4 py-3 text-sm" data-testid="sources-summary">
           <summary className="cursor-pointer">
-            Fuentes confirmadas: {record.selection.specialties.length} {record.selection.specialties.length === 1 ? "área" : "áreas"}
+            Fuentes confirmadas: {plural(record.selection.specialties.length, "área", "áreas")}
             {record.selection.specialties.some((s) => s.labelOverride) ? ` · ${record.selection.specialties.filter((s) => s.labelOverride).length} con etiqueta corregida` : ""}
-            {record.selection.excludedNoteIds.length > 0 ? ` · ${record.selection.excludedNoteIds.length} notas no usadas` : ""}
+            {record.selection.excludedNoteIds.length > 0 ? ` · ${plural(record.selection.excludedNoteIds.length, "nota no usada", "notas no usadas")}` : ""}
             <span className="text-muted-foreground"> · Ver o cambiar fuentes</span>
           </summary>
-          <div className="mt-4">
-            <SourcesPanel record={record} />
+          <div className="mt-4 flex flex-col gap-4">
+            <SourcesPanel record={record} readOnly />
+            <div>
+              <AlertDialog>
+                <AlertDialogTrigger render={<Button variant="outline" />}>Cambiar fuentes</AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Cambiar las fuentes?</AlertDialogTitle>
+                    <AlertDialogDescription>Se descarta el borrador y las correcciones que hiciste. Después hay que generar de nuevo.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => dispatch({ type: "discard-draft", caseId: record.id })}>Cambiar fuentes</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
         </details>
       ) : record.selection ? (

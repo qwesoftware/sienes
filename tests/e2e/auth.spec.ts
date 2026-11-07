@@ -18,6 +18,12 @@ test("admin creates a user, the user must change the temporary password, and a d
   await expect(page.getByText("Sin casos")).toBeVisible();
 
   await page.getByRole("link", { name: "Usuarios" }).click();
+  // The dialog closes with Cancelar and has no other close button.
+  await page.getByRole("button", { name: "Nuevo usuario" }).click();
+  const dialog = page.getByRole("dialog", { name: "Nuevo usuario" });
+  await expect(dialog.getByRole("button", { name: "Close" })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Cancelar" }).click();
+  await expect(dialog).toBeHidden();
   await page.getByRole("button", { name: "Nuevo usuario" }).click();
   await page.getByLabel("Nombre").fill("Staff E2E");
   await page.getByLabel("Email").fill(email);
@@ -51,6 +57,34 @@ test("admin creates a user, the user must change the temporary password, and a d
   await staffContext.close();
 
   // Sign out returns to the sign-in screen.
-  await page.getByRole("button", { name: "Cerrar sesión" }).click();
+  await page.getByRole("button", { name: /^Cuenta de / }).click();
+  await page.getByRole("menuitem", { name: "Cerrar sesión" }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
+});
+
+test("an idle tab locks with the cases kept and unlocks with the password", async ({ page }) => {
+  // The browser clock is faked so the 30-minute idle timeout passes instantly.
+  await page.clock.install();
+  await signIn(page, e2eAdmin.email, e2eAdmin.password);
+  await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-b-renovacion-pami.pdf");
+  await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
+
+  await page.clock.fastForward("25:30");
+  await expect(page.getByRole("alertdialog")).toContainText("la pestaña se bloquea por inactividad");
+  await page.clock.fastForward("05:00");
+  const lock = page.getByRole("alertdialog", { name: "Pestaña bloqueada por inactividad" });
+  await expect(lock).toContainText("El caso sigue cargado.");
+  await expect(page.getByTestId("case-state")).toBeHidden();
+
+  // Escape does not dismiss it; a wrong password keeps it.
+  await page.keyboard.press("Escape");
+  await expect(lock).toBeVisible();
+  await lock.getByLabel("Contraseña").fill("not-the-password");
+  await lock.getByRole("button", { name: "Desbloquear" }).click();
+  await expect(lock.getByRole("alert")).toHaveText("Contraseña incorrecta");
+
+  await lock.getByLabel("Contraseña").fill(e2eAdmin.password);
+  await lock.getByRole("button", { name: "Desbloquear" }).click();
+  await expect(lock).toBeHidden();
+  await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
 });

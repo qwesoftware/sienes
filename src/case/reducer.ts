@@ -2,6 +2,7 @@ import type { Selection } from "@/contracts/ai";
 import type { Header, Insurer, ParsedExport } from "@/contracts/case";
 import type { Draft } from "@/contracts/draft";
 import type { EditEvent } from "@/contracts/telemetry";
+import { proposeInsurer } from "./insurer";
 import { newCase, type CaseRecord, type FieldEdit, type WorkspaceState } from "./types";
 
 export type DraftField = "diagnosis.text" | "diagnosis.cie10" | "prestacion.practiceCode" | "prestacion.module" | "prestacion.quantity";
@@ -13,6 +14,7 @@ export type WorkspaceAction =
   | { type: "edit-header"; caseId: string; field: keyof Omit<Header, "cud">; value: string }
   | { type: "set-cud"; caseId: string; cud: Header["cud"] }
   | { type: "set-insurer"; caseId: string; insurer: Insurer }
+  | { type: "set-insurer-all"; insurer: Insurer }
   | { type: "confirm-header"; caseId: string }
   | { type: "reopen-header"; caseId: string }
   | { type: "analyze-started"; caseId: string; attemptId: string }
@@ -23,17 +25,21 @@ export type WorkspaceAction =
   | { type: "generate-started"; caseId: string; attemptId: string }
   | { type: "generated"; caseId: string; attemptId: string; draft: Draft; versions: CaseRecord["versions"] }
   | { type: "generate-failed"; caseId: string; attemptId: string; message: string }
+  | { type: "discard-draft"; caseId: string }
   | { type: "edit-section"; caseId: string; key: string; text: string }
   | { type: "edit-field"; caseId: string; field: DraftField; value: string }
   | { type: "set-edit-reason"; caseId: string; fieldKey: string; reason: EditEvent["reason"] }
   | { type: "confirm-review"; caseId: string }
+  | { type: "downloaded"; caseIds: string[] }
   | { type: "set-rating"; caseId: string; fieldKey: string; value: number }
   | { type: "feedback-status"; caseId: string; status: CaseRecord["feedbackStatus"] }
   | { type: "select-case"; caseId: string | null }
   | { type: "remove-case"; caseId: string }
+  | { type: "lock" }
+  | { type: "unlock" }
   | { type: "clear-all" };
 
-export const initialWorkspace: WorkspaceState = { cases: [], selectedCaseId: null };
+export const initialWorkspace: WorkspaceState = { cases: [], selectedCaseId: null, lastInsurer: null, locked: false };
 
 function update(state: WorkspaceState, caseId: string, fn: (c: CaseRecord) => CaseRecord): WorkspaceState {
   return { ...state, cases: state.cases.map((c) => (c.id === caseId ? fn(c) : c)) };
@@ -98,6 +104,11 @@ function setField(draft: Draft, field: DraftField, raw: string): Draft {
   }
 }
 
+// The insurer is an input of the selection: changing it discards sources and draft.
+function withInsurer(c: CaseRecord, insurer: Insurer): CaseRecord {
+  return bump({ ...c, insurer, headerConfirmed: false, state: "confirmation-required", selection: null, draft: null, attemptId: null });
+}
+
 // The state a confirmed case returns to, given what it already holds.
 function settled(c: CaseRecord): CaseRecord["state"] {
   return c.draft ? "draft" : c.selection ? "ready-to-generate" : "ready-to-analyze";
@@ -109,13 +120,14 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       // The batch cap is enforced here, so two quick drops cannot exceed it.
       const room = Math.max(0, action.max - state.cases.length);
       const cases = [...state.cases, ...action.cases.slice(0, room).map((c) => newCase(c.id, c.fileName))];
-      return { cases, selectedCaseId: state.selectedCaseId ?? cases[0]?.id ?? null };
+      return { ...state, cases, selectedCaseId: state.selectedCaseId ?? cases[0]?.id ?? null };
     }
     case "parsed":
       return update(state, action.caseId, (c) => ({
         ...c,
         parsed: action.parsed,
         header: action.parsed.header,
+        insurer: c.insurer ?? proposeInsurer(action.parsed.header.coverageCode.value) ?? state.lastInsurer,
         state: "confirmation-required",
         error: null,
       }));
@@ -139,10 +151,14 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         c.header ? bump({ ...c, header: { ...c.header, cud: action.cud }, headerConfirmed: false, state: "confirmation-required" }) : c,
       );
     case "set-insurer":
-      // The insurer is an input of the selection: changing it discards sources and draft.
-      return update(state, action.caseId, (c) =>
-        bump({ ...c, insurer: action.insurer, headerConfirmed: false, state: "confirmation-required", selection: null, draft: null, attemptId: null }),
-      );
+      return { ...update(state, action.caseId, (c) => withInsurer(c, action.insurer)), lastInsurer: action.insurer };
+    case "set-insurer-all":
+      // Only cases that never got past the header: a reopened one keeps its sources.
+      return {
+        ...state,
+        cases: state.cases.map((c) => (c.headerConfirmed || c.selection ? c : withInsurer(c, action.insurer))),
+        lastInsurer: action.insurer,
+      };
     case "confirm-header":
       return update(state, action.caseId, (c) => {
         if (!c.header || !c.insurer || !c.header.patientName.value) return c;
@@ -182,6 +198,11 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       return update(state, action.caseId, (c) =>
         c.attemptId === action.attemptId && c.state === "generating" ? { ...c, state: "error", error: action.message, attemptId: null } : c,
       );
+    case "discard-draft":
+      // The reviewer asked to change the sources of a drafted case: the draft goes, the selection stays.
+      return update(state, action.caseId, (c) =>
+        bump({ ...c, draft: null, generatedDraft: null, edits: {}, ratings: {}, feedbackStatus: "idle", state: "ready-to-generate" }),
+      );
     case "edit-section":
       // Text edits keep the draft but need a new review.
       return update(state, action.caseId, (c) => {
@@ -204,6 +225,8 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       });
     case "confirm-review":
       return update(state, action.caseId, (c) => (c.draft ? { ...c, reviewedRevision: c.revision, state: "reviewed", feedbackStatus: "stale" } : c));
+    case "downloaded":
+      return { ...state, cases: state.cases.map((c) => (action.caseIds.includes(c.id) ? { ...c, downloadedRevision: c.revision } : c)) };
     case "set-rating":
       return update(state, action.caseId, (c) => ({ ...c, ratings: { ...c.ratings, [action.fieldKey]: action.value }, feedbackStatus: feedbackChanged(c) }));
     case "feedback-status":
@@ -215,9 +238,13 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       return { ...state, selectedCaseId: action.caseId };
     case "remove-case": {
       const cases = state.cases.filter((c) => c.id !== action.caseId);
-      return { cases, selectedCaseId: state.selectedCaseId === action.caseId ? (cases[0]?.id ?? null) : state.selectedCaseId };
+      return { ...state, cases, selectedCaseId: state.selectedCaseId === action.caseId ? (cases[0]?.id ?? null) : state.selectedCaseId };
     }
+    case "lock":
+      return { ...state, locked: true };
+    case "unlock":
+      return { ...state, locked: false };
     case "clear-all":
-      return initialWorkspace;
+      return { ...initialWorkspace, lastInsurer: state.lastInsurer };
   }
 }

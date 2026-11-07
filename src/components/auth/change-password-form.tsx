@@ -87,7 +87,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
         </Alert>
       ) : null}
       <Button type="submit" disabled={pending || !currentPassword || !newPassword || mismatch || tooShort}>
-        {pending ? <Spinner data-icon="inline-start" /> : null}
+        {pending ? <Spinner data-icon="inline-start" aria-hidden /> : null}
         Cambiar contraseña
       </Button>
     </form>

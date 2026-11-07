@@ -27,12 +27,15 @@ export type CaseRecord = {
   feedbackStatus: "idle" | "stale" | "sending" | "saved" | "failed"; // stale: reviewed and changed since the last save
   versions: { model: string; modules: Record<string, string> } | null;
   reviewedRevision: number | null; // revision the reviewer confirmed
+  downloadedRevision: number | null; // revision last downloaded as Word, alone or in a ZIP
   error: string | null;
 };
 
 export type WorkspaceState = {
   cases: CaseRecord[];
   selectedCaseId: string | null;
+  lastInsurer: Insurer | null; // the last insurer the reviewer chose in this tab
+  locked: boolean; // idle timeout reached: cases stay in memory, hidden until the password is entered
 };
 
 export function newCase(id: string, fileName: string): CaseRecord {
@@ -54,6 +57,7 @@ export function newCase(id: string, fileName: string): CaseRecord {
     feedbackStatus: "idle",
     versions: null,
     reviewedRevision: null,
+    downloadedRevision: null,
     error: null,
   };
 }

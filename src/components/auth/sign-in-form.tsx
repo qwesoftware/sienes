@@ -66,7 +66,7 @@ export function SignInForm() {
         </Alert>
       ) : null}
       <Button type="submit" disabled={pending || !email || !password}>
-        {pending ? <Spinner data-icon="inline-start" /> : null}
+        {pending ? <Spinner data-icon="inline-start" aria-hidden /> : null}
         Ingresar
       </Button>
     </form>

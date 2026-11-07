@@ -18,16 +18,24 @@ test("a staff member uploads an export, reviews the header and confirms it", asy
   await expect(page.getByTestId("case-state")).toHaveText("Confirmar datos");
   await expect(page.getByTestId("export-summary")).toContainText("Exportación del 02/09/2026 al 14/10/2026");
   await expect(page.getByTestId("export-summary")).toContainText("7 notas");
-  await expect(page.getByTestId("export-summary")).toContainText("1 páginas escaneadas ignoradas");
+  await expect(page.getByTestId("export-summary")).toContainText("1 página escaneada ignorada");
   await expect(page.getByLabel("Paciente")).toHaveValue("PEREYRA, MARTA LUCIA");
   await expect(page.getByLabel("Nº de afiliado")).toHaveValue("61234567801");
-  await expect(page.getByTestId("status-memberNumber")).toHaveText("Extraído");
+  // An extracted field carries no badge; a corrected one says so.
+  await expect(page.getByTestId("status-memberNumber")).toHaveCount(0);
 
   await page.getByLabel("Nº de afiliado").fill("61234567899");
   await expect(page.getByTestId("status-memberNumber")).toHaveText("Corregido");
-  await expect(page.locator("form").getByRole("button", { name: "Confirmar datos" })).toBeDisabled();
 
-  await page.getByRole("combobox", { name: "Obra social destino" }).click();
+  // The coverage "390-OSDE" proposes OSDE; a manual change drops the proposal mark.
+  const insurer = page.getByRole("combobox", { name: "Obra social destino" });
+  await expect(insurer).toContainText("OSDE");
+  await expect(page.getByTestId("insurer-proposed")).toHaveText("Propuesta");
+  await insurer.click();
+  await page.getByRole("option", { name: "PAMI" }).click();
+  await expect(insurer).toContainText("PAMI");
+  await expect(page.getByTestId("insurer-proposed")).toHaveCount(0);
+  await insurer.click();
   await page.getByRole("option", { name: "OSDE" }).click();
   await page.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Listo para analizar");
@@ -81,6 +89,18 @@ test("the reviewer analyzes the export and adjusts the proposed sources", async 
   await page.getByRole("option", { name: /14\/10\/2026/ }).click();
   await expect(primary).toContainText("14/10/2026");
   await expect(page.getByTestId("case-state")).toHaveText("Listo para generar");
+
+  // With a draft the sources are read-only; changing them asks first and discards the draft.
+  await page.getByRole("button", { name: "Generar resumen" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Borrador");
+  await page.getByTestId("sources-summary").getByText("Ver o cambiar fuentes").click();
+  await expect(page.getByTestId("specialty-kinesiologia")).toContainText("14/10/2026");
+  await expect(page.getByRole("combobox", { name: "Entrada principal de Kinesiología" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Cambiar fuentes" }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("Se descarta el borrador y las correcciones");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Cambiar fuentes" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Listo para generar");
+  await expect(page.getByRole("combobox", { name: "Entrada principal de Kinesiología" })).toBeVisible();
 });
 
 test("the reviewer generates the draft, corrects it, confirms the review and downloads Word", async ({ page }) => {
@@ -104,23 +124,29 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
   // The confirmed sources collapse to a summary once the draft exists.
   await expect(page.getByTestId("sources-summary")).toContainText("Fuentes confirmadas");
 
-  // Copy and download stay disabled until the review is confirmed.
+  // A section without content offers to add text instead of an empty box.
+  const assessments = page.getByTestId("section-assessments");
+  await expect(assessments).toContainText("Sin contenido en las fuentes.");
+  await assessments.getByRole("button", { name: "Agregar texto" }).click();
+  await expect(assessments.getByRole("textbox")).toBeFocused();
+
+  // Copy and download appear only once the review is confirmed.
   const copyIndicaciones = page.getByRole("button", { name: "Copiar Indicaciones" });
-  await expect(copyIndicaciones).toBeDisabled();
+  await expect(copyIndicaciones).toHaveCount(0);
   const copyReason = page.getByTestId("section-reason").getByRole("button", { name: "Copiar" });
-  await expect(copyReason).toBeDisabled();
+  await expect(copyReason).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Descargar Word" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Revisé el contenido" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Revisado");
-  await expect(copyReason).toBeEnabled();
+  await expect(copyReason).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Descargar Word" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("RHC-QUIROGA-HECTOR-OSVALDO.docx");
 
   // Indicaciones combines every section in one text with its length.
-  await expect(copyIndicaciones).toBeEnabled();
+  await expect(copyIndicaciones).toBeVisible();
   const indicaciones = page.getByTestId("indicaciones");
   await expect(indicaciones.getByRole("textbox")).toHaveValue(/^Motivo: [^\n]+\n\nDiagnóstico: /);
   await expect(indicaciones).toContainText(/[1-9]\d* caracteres/);
@@ -128,14 +154,14 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
   // Removing a case with a draft asks first.
   await page.getByRole("button", { name: "Quitar caso" }).click();
   await expect(page.getByRole("alertdialog")).toContainText("Se descarta el borrador");
-  await page.getByRole("button", { name: "Volver" }).click();
+  await page.getByRole("button", { name: "Cancelar" }).click();
 
-  // An edit invalidates the review: copy is disabled again and a new confirmation is needed.
+  // An edit invalidates the review: copy is hidden again and a new confirmation is needed.
   await page.getByTestId("section-reason").getByRole("textbox").fill("Se solicita la renovación del módulo de rehabilitación.");
   await expect(page.getByTestId("case-state")).toHaveText("Borrador");
-  await expect(copyReason).toBeDisabled();
+  await expect(copyReason).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Revisé el contenido" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "Motivo de la edición de reason" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Motivo de la edición de Motivo" })).toBeVisible();
 
   // A reason picked after the second confirmation reaches the stored feedback.
   const feedbackBodies: { edits: { fieldKey: string; reason: string | null }[] }[] = [];
@@ -145,14 +171,14 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
   });
   await page.getByRole("button", { name: "Revisé el contenido" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Revisado");
-  await page.getByRole("combobox", { name: "Motivo de la edición de reason" }).click();
+  await page.getByRole("combobox", { name: "Motivo de la edición de Motivo" }).click();
   await page.getByRole("option", { name: "Redacción" }).click();
   await expect.poll(() => feedbackBodies.at(-1)?.edits.find((e) => e.fieldKey === "reason")?.reason).toBe("wording");
 
   // Regenerating after manual edits asks first.
   await page.getByRole("button", { name: "Regenerar" }).click();
   await expect(page.getByRole("alertdialog")).toContainText("Se reemplazan las correcciones manuales");
-  await page.getByRole("button", { name: "Volver" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Cancelar" }).click();
 });
 
 test("a feedback storage failure shows a notice but never blocks copy or download", async ({ page }) => {
@@ -165,12 +191,19 @@ test("a feedback storage failure shows a notice but never blocks copy or downloa
   await page.getByRole("button", { name: "Analizar fuentes" }).click();
   await page.getByRole("button", { name: "Generar resumen" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Borrador");
-  await page.getByRole("group", { name: "Calificación de reason" }).getByRole("button", { name: "4 de 5" }).click();
+  // A draft with alerts starts at them.
+  await expect(page.getByTestId("draft-alerts")).toBeFocused();
+  await page.getByRole("group", { name: "Calificación de Motivo" }).getByRole("button", { name: "4 de 5" }).click();
 
+  // Confirming over open alerts and empty portal fields asks first.
+  await expect(page.getByText("1 alerta abierta · Práctica, Módulo y Cantidad vacíos", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Revisé el contenido" }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("El caso entra al ZIP tal como está.");
+  await expect(page.getByRole("alertdialog").getByRole("button", { name: "Cancelar" })).toBeFocused();
+  await page.getByRole("button", { name: "Confirmar igual" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Revisado");
   await expect(page.getByRole("status").filter({ hasText: "No se pudo guardar el feedback" })).toBeVisible();
-  await expect(page.getByTestId("section-reason").getByRole("button", { name: "Copiar" })).toBeEnabled();
+  await expect(page.getByTestId("section-reason").getByRole("button", { name: "Copiar" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Descargar Word" })).toBeVisible();
 });
 
@@ -231,4 +264,15 @@ test("a batch processes three exports with failures, retries only the failed cas
   const excluded = await zip.file("excluidos.txt")!.async("string");
   expect(excluded).toContain("QUIROGA, HECTOR OSVALDO: borrador");
   expect(excluded).toContain("ACOSTA, TOMAS: error");
+
+  // Finishing asks first because a draft would be lost; the ZIP counted as the download of the reviewed case.
+  await expect(page.getByTestId("reviewed-count")).toHaveText("1 de 3 revisados");
+  await page.getByRole("button", { name: "Finalizar y limpiar" }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("¿Finalizar y borrar 3 casos?");
+  await expect(page.getByRole("alertdialog")).not.toContainText("sin descargar");
+  await page.getByRole("button", { name: "Cancelar" }).click();
+  await expect(items).toHaveCount(3);
+  await page.getByRole("button", { name: "Finalizar y limpiar" }).click();
+  await page.getByRole("button", { name: "Finalizar", exact: true }).click();
+  await expect(page.getByText("Sin casos")).toBeVisible();
 });

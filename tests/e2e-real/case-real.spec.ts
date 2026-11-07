@@ -8,6 +8,13 @@ import { e2eAdmin } from "../e2e/global-setup";
 // Assertions check what the fixtures make certain (explicit codes, a
 // mislabeled note, documented quantities) rather than exact wording.
 
+// A real draft may carry alerts or empty portal fields; the review then asks before confirming.
+async function confirmReview(page: Page) {
+  await page.getByRole("button", { name: "Revisé el contenido" }).click();
+  const dialog = page.getByRole("alertdialog");
+  if (await dialog.isVisible({ timeout: 1000 }).catch(() => false)) await dialog.getByRole("button", { name: "Confirmar igual" }).click();
+}
+
 async function signIn(page: Page) {
   await page.goto("/sign-in");
   await page.getByLabel("Email").fill(e2eAdmin.email);
@@ -61,12 +68,12 @@ test("single case: real selection, generation, review, feedback and Word", async
   // The medication change (AAS stopped, clopidogrel started) must be reflected.
   await expect(page.getByTestId("section-medication").getByRole("textbox")).toHaveValue(/[Cc]lopidogrel/);
 
-  const copyReason = page.getByTestId("section-reason").getByRole("button", { name: "Copiar" });
-  await expect(copyReason).toBeDisabled();
-  await page.getByRole("group", { name: "Calificación de reason" }).getByRole("button", { name: "5 de 5" }).click();
-  await page.getByRole("button", { name: "Revisé el contenido" }).click();
+  const copyReason = page.getByTestId("section-reason").getByRole("button", { name: "Copiar Motivo" });
+  await expect(copyReason).toHaveCount(0);
+  await page.getByRole("group", { name: "Calificación de Motivo" }).getByRole("button", { name: "5 de 5" }).click();
+  await confirmReview(page);
   await expect(page.getByTestId("case-state")).toHaveText("Revisado");
-  await expect(copyReason).toBeEnabled();
+  await expect(copyReason).toBeVisible();
   await expect.poll(storedCases, { timeout: 20_000 }).toBe(before + 1);
 
   const downloadPromise = page.waitForEvent("download");
@@ -75,7 +82,7 @@ test("single case: real selection, generation, review, feedback and Word", async
 
   await page.getByTestId("section-reason").getByRole("textbox").fill("Se solicita la renovación del módulo de rehabilitación.");
   await expect(page.getByTestId("case-state")).toHaveText("Borrador");
-  await expect(copyReason).toBeDisabled();
+  await expect(copyReason).toHaveCount(0);
 });
 
 test("batch: two cases with the real model and a ZIP of the reviewed one", async ({ page }) => {
@@ -95,7 +102,7 @@ test("batch: two cases with the real model and a ZIP of the reviewed one", async
   await items.nth(0).getByRole("button").click();
   await expect(page.getByTestId("field-diagnosis.cie10")).toHaveValue("G20");
   await expect(page.getByTestId("field-prestacion.quantity")).toHaveValue("72");
-  await page.getByRole("button", { name: "Revisé el contenido" }).click();
+  await confirmReview(page);
   await expect(page.getByTestId("case-state")).toHaveText("Revisado");
 
   await items.nth(1).getByRole("button").click();

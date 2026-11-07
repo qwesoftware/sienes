@@ -1,13 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/case/store";
 import { cn } from "@/lib/utils";
 
 export function UploadZone() {
-  const { addFiles, limits, state } = useWorkspace();
-  const input = useRef<HTMLInputElement>(null);
+  const { addFiles, limits, state, filePicker: input } = useWorkspace();
   const [over, setOver] = useState(false);
   const remaining = limits.BATCH_MAX_PATIENTS - state.cases.length;
 
@@ -15,7 +14,6 @@ export function UploadZone() {
     if (!list) return;
     const files = Array.from(list).filter((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
     if (files.length > 0) await addFiles(files);
-    if (input.current) input.current.value = "";
   }
 
   return (
@@ -42,7 +40,11 @@ export function UploadZone() {
         multiple
         className="sr-only"
         aria-label="Cargar PDF"
-        onChange={(e) => void take(e.target.files)}
+        onChange={(e) => {
+          // take() copies the list before its first await, so the input can be reset right away.
+          void take(e.target.files);
+          e.target.value = "";
+        }}
       />
       <Button variant="outline" onClick={() => input.current?.click()} disabled={remaining <= 0}>
         Elegir PDF

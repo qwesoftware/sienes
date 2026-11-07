@@ -6,6 +6,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { proposeInsurer } from "@/case/insurer";
 import { useWorkspace } from "@/case/store";
 import type { CaseRecord } from "@/case/types";
 import { insurerLabels, insurerSchema, type Header, type Insurer } from "@/contracts/case";
@@ -21,14 +22,13 @@ const fields: { key: keyof Omit<Header, "cud">; label: string }[] = [
   { key: "memberNumber", label: "Nº de afiliado" },
 ];
 
-const statusLabels = { extracted: "Extraído", missing: "Falta", corrected: "Corregido" } as const;
-
 export function HeaderForm({ record }: { record: CaseRecord }) {
   const { dispatch } = useWorkspace();
   const header = record.header;
   if (!header) return null;
   const locked = record.headerConfirmed;
   const canConfirm = Boolean(header.patientName.value) && record.insurer !== null;
+  const proposed = record.insurer !== null && proposeInsurer(record.parsed?.header.coverageCode.value ?? null) === record.insurer;
 
   if (locked) {
     const cud = { yes: "CUD sí", no: "CUD no", unknown: "CUD sin información" }[header.cud];
@@ -63,12 +63,19 @@ export function HeaderForm({ record }: { record: CaseRecord }) {
             <Field key={key} data-invalid={field.status === "missing" && key === "patientName" ? true : undefined}>
               <FieldLabel htmlFor={id} className="justify-between">
                 {label}
-                <Badge variant={field.status === "missing" ? "outline" : "secondary"} data-testid={`status-${key}`}>
-                  {statusLabels[field.status]}
-                </Badge>
+                {field.status === "missing" ? (
+                  <Badge variant="destructive" data-testid={`status-${key}`}>
+                    Falta
+                  </Badge>
+                ) : field.status === "corrected" ? (
+                  <Badge variant="outline" data-testid={`status-${key}`}>
+                    Corregido
+                  </Badge>
+                ) : null}
               </FieldLabel>
               <Input
                 id={id}
+                aria-invalid={field.status === "missing" ? true : undefined}
                 value={field.value ?? ""}
                 onChange={(e) => dispatch({ type: "edit-header", caseId: record.id, field: key, value: e.target.value })}
               />
@@ -76,7 +83,14 @@ export function HeaderForm({ record }: { record: CaseRecord }) {
           );
         })}
         <Field>
-          <FieldLabel htmlFor={`${record.id}-insurer`}>Obra social destino</FieldLabel>
+          <FieldLabel htmlFor={`${record.id}-insurer`} className="justify-between">
+            Obra social destino
+            {proposed ? (
+              <Badge variant="outline" data-testid="insurer-proposed">
+                Propuesta
+              </Badge>
+            ) : null}
+          </FieldLabel>
           <Select
             value={record.insurer}
             items={insurerLabels}
@@ -98,7 +112,13 @@ export function HeaderForm({ record }: { record: CaseRecord }) {
               </SelectGroup>
             </SelectContent>
           </Select>
-          <FieldDescription>{record.insurer ? "Todas reciben el formato PAMI." : "Elegí la obra social destino para confirmar los datos."}</FieldDescription>
+          <FieldDescription>
+            {proposed
+              ? "Propuesta a partir de la cobertura. Cambiala si corresponde."
+              : record.insurer
+                ? "Todas reciben el formato PAMI."
+                : "Elegí la obra social destino para confirmar los datos."}
+          </FieldDescription>
         </Field>
         <Field>
           <FieldLabel>CUD</FieldLabel>

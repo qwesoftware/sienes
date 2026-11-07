@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/case/store";
 import type { CaseRecord } from "@/case/types";
-import { formatDate, stateLabels } from "@/lib/format";
+import { formatDate, plural, stateLabels } from "@/lib/format";
 import { AnalyzeStep } from "./analyze-step";
 import { DraftStep } from "./draft-step";
 import { HeaderForm } from "./header-form";
@@ -48,7 +48,7 @@ export function CaseDetail({ record }: { record: CaseRecord }) {
                 <AlertDialogDescription>Se descarta el borrador y las correcciones que hiciste. No se puede recuperar.</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Volver</AlertDialogCancel>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <AlertDialogAction onClick={() => dispatch({ type: "remove-case", caseId: record.id })}>Quitar caso</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -61,8 +61,8 @@ export function CaseDetail({ record }: { record: CaseRecord }) {
       </div>
 
       {record.state === "reading" ? (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
-          <Spinner /> Leyendo el PDF…
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Spinner aria-hidden /> Leyendo el PDF…
         </p>
       ) : null}
 
@@ -77,8 +77,8 @@ export function CaseDetail({ record }: { record: CaseRecord }) {
         <div className="flex flex-col gap-1 text-sm text-muted-foreground" data-testid="export-summary">
           <p>
             {parsed.dateRange ? `Exportación del ${formatDate(parsed.dateRange.from)} al ${formatDate(parsed.dateRange.to)}` : "Sin notas fechadas"} ·{" "}
-            {parsed.notes.length} {parsed.notes.length === 1 ? "nota" : "notas"} · {parsed.pageCount} páginas
-            {parsed.imageOnlyPages.length > 0 ? ` · ${parsed.imageOnlyPages.length} páginas escaneadas ignoradas` : ""}
+            {plural(parsed.notes.length, "nota", "notas")} · {plural(parsed.pageCount, "página", "páginas")}
+            {parsed.imageOnlyPages.length > 0 ? ` · ${plural(parsed.imageOnlyPages.length, "página escaneada ignorada", "páginas escaneadas ignoradas")}` : ""}
           </p>
           <p>
             {[...labels.entries()].map(([label, count]) => `${label} (${count})`).join(" · ")}

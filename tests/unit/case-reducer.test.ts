@@ -25,9 +25,10 @@ function run(actions: WorkspaceAction[]) {
 
 describe("workspace reducer", () => {
   it("moves a parsed case to confirmation, then to ready once insurer and name are set", () => {
+    const noCoverage = { ...parsed, header: { ...parsed.header, coverageCode: { value: null, status: "missing" as const } } };
     const state = run([
       { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }], max: 20 },
-      { type: "parsed", caseId: "c1", parsed },
+      { type: "parsed", caseId: "c1", parsed: noCoverage },
       { type: "confirm-header", caseId: "c1" }, // no insurer yet: ignored
     ]);
     expect(state.cases[0].state).toBe("confirmation-required");
@@ -212,5 +213,89 @@ describe("case cap", () => {
       { type: "add-cases", cases: [{ id: "c3", fileName: "c.pdf" }, { id: "c4", fileName: "d.pdf" }], max: 3 },
     ]);
     expect(state.cases.map((c) => c.id)).toEqual(["c1", "c2", "c3"]);
+  });
+});
+
+describe("insurer proposal", () => {
+  const withCoverage = (value: string | null): ParsedExport => ({ ...parsed, header: { ...parsed.header, coverageCode: { value, status: value ? "extracted" : "missing" } } });
+
+  it("pre-sets the insurer proposed by the coverage, else the last one chosen in the tab", () => {
+    const state = run([
+      { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }, { id: "c2", fileName: "b.pdf" }, { id: "c3", fileName: "c.pdf" }], max: 20 },
+      { type: "parsed", caseId: "c1", parsed: withCoverage("390-OSDE") },
+      { type: "parsed", caseId: "c2", parsed: withCoverage("500-IOMA") },
+      { type: "set-insurer", caseId: "c2", insurer: "ostvla" },
+      { type: "parsed", caseId: "c3", parsed: withCoverage(null) },
+    ]);
+    expect(state.cases.map((c) => c.insurer)).toEqual(["osde", "ostvla", "ostvla"]);
+    expect(run([{ type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }], max: 20 }, { type: "parsed", caseId: "c1", parsed: withCoverage(null) }]).cases[0].insurer).toBeNull();
+  });
+
+  it("sets the insurer of every case not yet confirmed", () => {
+    const state = run([
+      { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }, { id: "c2", fileName: "b.pdf" }], max: 20 },
+      { type: "parsed", caseId: "c1", parsed },
+      { type: "parsed", caseId: "c2", parsed },
+      { type: "confirm-header", caseId: "c1" },
+      { type: "set-insurer-all", insurer: "pami" },
+    ]);
+    expect(state.cases.map((c) => [c.insurer, c.headerConfirmed])).toEqual([["osde", true], ["pami", false]]);
+    expect(state.lastInsurer).toBe("pami");
+  });
+});
+
+describe("discarding a draft and recording downloads", () => {
+  const selection = { specialties: [], diagnosisNoteIds: ["n1"], historyNoteIds: [], medicationNoteIds: [], excludedNoteIds: [] };
+  const draft = {
+    sections: [{ key: "reason", title: "Motivo", text: "Renovación.", references: [] }],
+    diagnosis: { text: "ACV", cie10: null, references: [] },
+    prestacion: { practiceCode: null, module: null, quantity: 24, references: [] },
+    alerts: [],
+  };
+  const reviewed = run([
+    { type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }], max: 20 },
+    { type: "parsed", caseId: "c1", parsed },
+    { type: "confirm-header", caseId: "c1" },
+    { type: "analyze-started", caseId: "c1", attemptId: "a1" },
+    { type: "analyzed", caseId: "c1", attemptId: "a1", selection },
+    { type: "generate-started", caseId: "c1", attemptId: "g1" },
+    { type: "generated", caseId: "c1", attemptId: "g1", draft, versions: { model: "mock", modules: {} } },
+    { type: "edit-section", caseId: "c1", key: "reason", text: "Otra cosa." },
+    { type: "set-rating", caseId: "c1", fieldKey: "reason", value: 4 },
+    { type: "confirm-review", caseId: "c1" },
+  ]);
+
+  it("discard-draft drops the draft, corrections and ratings but keeps the selection", () => {
+    const c = workspaceReducer(reviewed, { type: "discard-draft", caseId: "c1" }).cases[0];
+    expect(c).toMatchObject({ draft: null, generatedDraft: null, edits: {}, ratings: {}, state: "ready-to-generate", selection });
+    expect(c.reviewedRevision).not.toBe(c.revision);
+  });
+
+  it("downloaded records the revision that was downloaded", () => {
+    const downloaded = workspaceReducer(reviewed, { type: "downloaded", caseIds: ["c1"] }).cases[0];
+    expect(downloaded.downloadedRevision).toBe(downloaded.revision);
+  });
+});
+
+describe("idle lock", () => {
+  const loaded = run([{ type: "add-cases", cases: [{ id: "c1", fileName: "a.pdf" }], max: 20 }]);
+
+  it("starts unlocked", () => {
+    expect(initialWorkspace.locked).toBe(false);
+  });
+
+  it("lock keeps every case and unlock returns to the same cases", () => {
+    const locked = workspaceReducer(loaded, { type: "lock" });
+    expect(locked.locked).toBe(true);
+    expect(locked.cases).toEqual(loaded.cases);
+    expect(locked.selectedCaseId).toBe(loaded.selectedCaseId);
+    const unlocked = workspaceReducer(locked, { type: "unlock" });
+    expect(unlocked.locked).toBe(false);
+    expect(unlocked.cases).toEqual(loaded.cases);
+  });
+
+  it("clear-all from a locked tab leaves it empty and unlocked", () => {
+    const cleared = workspaceReducer(workspaceReducer(loaded, { type: "lock" }), { type: "clear-all" });
+    expect(cleared).toMatchObject({ cases: [], locked: false });
   });
 });
