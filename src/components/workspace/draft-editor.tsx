@@ -6,6 +6,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { DraftField } from "@/case/reducer";
 import { useWorkspace } from "@/case/store";
 import type { CaseRecord } from "@/case/types";
@@ -17,7 +18,7 @@ const NO_REASON = "__none__";
 const reasonItems: Record<string, string> = { [NO_REASON]: "Sin motivo", ...editReasonLabels };
 
 export function DraftEditor({ record }: { record: CaseRecord }) {
-  const { dispatch } = useWorkspace();
+  const { dispatch, sendFeedback } = useWorkspace();
   const draft = record.draft;
   if (!draft) return null;
   const reviewed = record.reviewedRevision === record.revision;
@@ -69,6 +70,28 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
     );
   };
 
+  // Optional 1–5 rating per section; sent with the feedback once the review is confirmed.
+  const ratingGroup = (fieldKey: string) => (
+    <ToggleGroup
+      value={record.ratings[fieldKey] ? [String(record.ratings[fieldKey])] : []}
+      aria-label={`Calificación de ${fieldKey}`}
+      size="sm"
+      variant="outline"
+      onValueChange={(values: string[]) => {
+        const value = Number(values[values.length - 1]);
+        if (!value) return;
+        dispatch({ type: "set-rating", caseId: record.id, fieldKey, value });
+        if (record.reviewedRevision === record.revision) void sendFeedback(record.id);
+      }}
+    >
+      {[1, 2, 3, 4, 5].map((n) => (
+        <ToggleGroupItem key={n} value={String(n)} aria-label={`${n} de 5`}>
+          {n}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  );
+
   const fieldInput = (field: DraftField, label: string, value: string) => (
     <Field>
       <FieldLabel htmlFor={`${record.id}-${field}`} className="justify-between">
@@ -114,6 +137,7 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
           <FieldLabel htmlFor={`${record.id}-${section.key}`} className="justify-between">
             {section.title}
             <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+              {ratingGroup(section.key)}
               {section.text.length} caracteres
               <CopyButton text={section.text} label="Copiar" disabled={!reviewed} />
             </span>

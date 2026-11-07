@@ -119,3 +119,22 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
   await expect(page.getByRole("alertdialog")).toContainText("Se reemplazan las correcciones manuales");
   await page.getByRole("button", { name: "Volver" }).click();
 });
+
+test("a feedback storage failure shows a notice but never blocks copy or download", async ({ page }) => {
+  await page.route("**/api/feedback", (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Error interno" }) }));
+  await signIn(page);
+  await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-c-infantojuvenil.pdf");
+  await page.getByRole("combobox", { name: "Obra social destino" }).click();
+  await page.getByRole("option", { name: "Swiss Medical" }).click();
+  await page.locator("form").getByRole("button", { name: "Confirmar datos" }).click();
+  await page.getByRole("button", { name: "Analizar fuentes" }).click();
+  await page.getByRole("button", { name: "Generar resumen" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Borrador");
+  await page.getByRole("group", { name: "Calificación de reason" }).getByRole("button", { name: "4 de 5" }).click();
+
+  await page.getByRole("button", { name: "Revisé el contenido" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Revisado");
+  await expect(page.getByRole("status").filter({ hasText: "No se pudo guardar el feedback" })).toBeVisible();
+  await expect(page.getByTestId("section-reason").getByRole("button", { name: "Copiar" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Descargar Word" })).toBeVisible();
+});

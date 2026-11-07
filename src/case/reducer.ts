@@ -27,6 +27,8 @@ export type WorkspaceAction =
   | { type: "edit-field"; caseId: string; field: DraftField; value: string }
   | { type: "set-edit-reason"; caseId: string; fieldKey: string; reason: EditEvent["reason"] }
   | { type: "confirm-review"; caseId: string }
+  | { type: "set-rating"; caseId: string; fieldKey: string; value: number }
+  | { type: "feedback-status"; caseId: string; status: CaseRecord["feedbackStatus"] }
   | { type: "select-case"; caseId: string | null }
   | { type: "remove-case"; caseId: string }
   | { type: "clear-all" };
@@ -165,7 +167,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
     case "generated":
       return update(state, action.caseId, (c) =>
         c.attemptId === action.attemptId && c.state === "generating"
-          ? { ...c, state: "draft", draft: action.draft, generatedDraft: action.draft, edits: {}, versions: action.versions, attemptId: null, reviewedRevision: null }
+          ? { ...c, state: "draft", draft: action.draft, generatedDraft: action.draft, edits: {}, ratings: {}, feedbackStatus: "idle", versions: action.versions, attemptId: null, reviewedRevision: null }
           : c,
       );
     case "generate-failed":
@@ -194,6 +196,10 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       });
     case "confirm-review":
       return update(state, action.caseId, (c) => (c.draft ? { ...c, reviewedRevision: c.revision, state: "reviewed" } : c));
+    case "set-rating":
+      return update(state, action.caseId, (c) => ({ ...c, ratings: { ...c.ratings, [action.fieldKey]: action.value } }));
+    case "feedback-status":
+      return update(state, action.caseId, (c) => ({ ...c, feedbackStatus: action.status }));
     case "select-case":
       return { ...state, selectedCaseId: action.caseId };
     case "remove-case": {

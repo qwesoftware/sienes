@@ -3,13 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { GenerateRequest, GenerateResponse, SelectRequest, SelectResponse, SourceNote } from "@/contracts/ai";
 import type { Note } from "@/contracts/case";
+import type { Feedback } from "@/contracts/feedback";
 import { apiFetch } from "@/lib/client-api";
 import { parseMedexis, ParseError } from "@/parser/medexis";
 import { extractPagesBrowser } from "@/parser/pdf-browser";
 import type { PublicLimits } from "@/lib/limits";
 import { createIdleTimer, type IdleTimer } from "./idle-timer";
 import { initialWorkspace, workspaceReducer, type WorkspaceAction } from "./reducer";
-import type { WorkspaceState } from "./types";
+import type { CaseRecord, WorkspaceState } from "./types";
 
 export type SessionNotice = { kind: "warning"; remainingMs: number } | { kind: "expired" } | null;
 
@@ -27,7 +28,24 @@ type WorkspaceContextValue = {
   analyze: (caseId: string) => Promise<void>;
   generate: (caseId: string) => Promise<void>;
   cancelAttempt: (caseId: string) => void;
+  confirmReview: (caseId: string) => Promise<void>;
+  sendFeedback: (caseId: string) => Promise<void>;
 };
+
+// Header fields and file names are not part of the feedback body (ADR-0003).
+export function feedbackOf(record: Pick<CaseRecord, "id" | "insurer" | "revision" | "versions" | "generatedDraft" | "draft" | "ratings" | "edits">): Feedback | null {
+  if (!record.insurer || !record.versions || !record.generatedDraft || !record.draft) return null;
+  return {
+    caseToken: record.id,
+    insurer: record.insurer,
+    revision: record.revision,
+    versions: record.versions,
+    generatedDraft: record.generatedDraft,
+    correctedDraft: record.draft,
+    ratings: record.ratings,
+    edits: Object.entries(record.edits).map(([fieldKey, e]) => ({ fieldKey, scope: "generated-content" as const, change: e.change, reason: e.reason })),
+  };
+}
 
 function toSource(n: Note): SourceNote {
   return { id: n.id, recordedDate: n.recordedDate, authorName: n.authorName, authorSpecialtyLabel: n.authorSpecialtyLabel, text: n.text, pages: n.pages };
@@ -205,9 +223,31 @@ export function WorkspaceProvider({ limits, children }: { limits: PublicLimits; 
     dispatch({ type: "cancel-attempt", caseId });
   }, []);
 
+  // Feedback storage never blocks the review: a failure only shows a notice.
+  const sendFeedback = useCallback(async (caseId: string) => {
+    const record = stateRef.current.cases.find((c) => c.id === caseId);
+    const body = record ? feedbackOf(record) : null;
+    if (!body) return;
+    dispatch({ type: "feedback-status", caseId, status: "sending" });
+    try {
+      await apiFetch("/api/feedback", { method: "POST", json: body });
+      dispatch({ type: "feedback-status", caseId, status: "saved" });
+    } catch {
+      dispatch({ type: "feedback-status", caseId, status: "failed" });
+    }
+  }, []);
+
+  const confirmReview = useCallback(
+    async (caseId: string) => {
+      dispatch({ type: "confirm-review", caseId });
+      await sendFeedback(caseId); // confirmation changes no field the body carries
+    },
+    [sendFeedback],
+  );
+
   const value = useMemo<WorkspaceContextValue>(
-    () => ({ state, dispatch, limits, addFiles, endSession, notice, continueWorking, dismissNotice: () => setNotice(null), beginClinicalCall, analyze, generate, cancelAttempt }),
-    [state, limits, addFiles, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt],
+    () => ({ state, dispatch, limits, addFiles, endSession, notice, continueWorking, dismissNotice: () => setNotice(null), beginClinicalCall, analyze, generate, cancelAttempt, confirmReview, sendFeedback }),
+    [state, limits, addFiles, endSession, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, confirmReview, sendFeedback],
   );
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

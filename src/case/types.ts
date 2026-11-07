@@ -23,6 +23,8 @@ export type CaseRecord = {
   draft: Draft | null; // current text, including the reviewer's edits
   generatedDraft: Draft | null; // as the model returned it, after validation
   edits: Record<string, FieldEdit>; // by section key or portal field name
+  ratings: Record<string, number>; // 1..5 by section key or field name
+  feedbackStatus: "idle" | "sending" | "saved" | "failed";
   versions: { model: string; modules: Record<string, string> } | null;
   reviewedRevision: number | null; // revision the reviewer confirmed
   error: string | null;
@@ -48,6 +50,8 @@ export function newCase(id: string, fileName: string): CaseRecord {
     draft: null,
     generatedDraft: null,
     edits: {},
+    ratings: {},
+    feedbackStatus: "idle",
     versions: null,
     reviewedRevision: null,
     error: null,
