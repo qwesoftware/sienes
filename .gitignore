@@ -1,11 +1,27 @@
+# secrets and local env
 .env*
+!.env.example
+
+# dependencies and build output
+/node_modules
+/.next/
+/out/
+/coverage
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+
+# test output
+/test-results/
+/playwright-report/
+.playwright-mcp/
+
+# OS
 .DS_Store
 
+# real patient and client material: never committed
 /documentos-cliente/
 /propuesta/
 /formularios-obras-sociales/
 /exports-medexis/
-
-
-# Playwright MCP screenshots and snapshots
-.playwright-mcp/
+/sienes/

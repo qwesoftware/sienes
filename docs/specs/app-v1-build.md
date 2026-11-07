@@ -1,6 +1,6 @@
 # Application v1 build
 
-Status: draft · Updated: 2026-11-06
+Status: building · Updated: 2026-11-06
 
 ## Problem
 The functional scope, stack and agent design are decided (master document, ADR-0001 to ADR-0004, [RHC generation agent](rhc-generation-agent.md)) but no code exists. This plan orders the whole first version into vertical slices that can each be built, verified locally and committed, ending in an app that is ready to deploy but not deployed.
@@ -35,7 +35,7 @@ flowchart LR
 ```
 
 ## Slices
-1. [ ] **Scaffold and verify loop**: Next.js app, TypeScript strict, Tailwind, shadcn/ui, brand theme and base layout, pnpm, `docker-compose.yml` (Postgres 17), Drizzle with first migration, typed config module from env validated at startup (limits from the master document), `pnpm verify`, pre-commit hooks, stack skills installed, `.env.example`. Verify: `pnpm verify` green on the empty app; Playwright opens the home page and sees the wordmark in Work Sans.
+1. [x] **Scaffold and verify loop**: Next.js app, TypeScript strict, Tailwind, shadcn/ui, brand theme and base layout, pnpm, `docker-compose.yml` (Postgres 17), Drizzle with first migration, typed config module from env validated at startup (limits from the master document), `pnpm verify`, pre-commit hooks, stack skills installed, `.env.example`. Verify: `pnpm verify` green on the empty app; Playwright opens the home page and sees the wordmark in Work Sans.
 2. [ ] **Auth and administration**: Better Auth with Admin plugin, sign-in page, seed script for the first admin, must-change-password flow, user list with create/disable/reset, last-admin guard, authorization helper used by every route. Verify: Vitest proves sign-up is rejected and a disabled user's session fails on the next request; Playwright signs in, creates a user, disables it and sees it locked out.
 3. [ ] **Contracts, parser and fixtures**: Zod contracts (sources, results, telemetry, API bodies), specialty alias catalog, `pdfjs-dist` worker, Medexis parser (header, notes with recorded date, author, specialty, pages, image-only pages ignored, no-text PDF rejected), fixture generator producing three synthetic exports (mislabeled notes, interdisciplinary note, undated note, one image-only page, one no-text file), read-only local script that parses the real exports and prints counts only. Verify: Vitest parser tests on the fixtures; the local script parses all 13 real exports without error.
 4. [ ] **Case screen and clinical session**: upload, header confirmation, insurer selection, case state machine (reading, confirmation required, analyzing, ready to generate, generating, draft, reviewed, error, canceled), revision and attempt ids, 30-minute idle timer with 5-minute warning and clear-on-expire, leave warning. Verify: Playwright uploads a fixture and confirms the header; a fake-clock unit test expires the session and clears state.

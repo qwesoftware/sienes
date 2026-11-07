@@ -10,6 +10,21 @@ The project is in the specification stage. The functional scope is approved and 
 
 The AI layer is a Vercel AI SDK agent loop calling the provider directly, with OpenAI as the preferred candidate subject to retention and quality validation. The production model will be selected through evaluation.
 
+## Run locally
+
+Requirements: Node 22+, pnpm 10, Docker Desktop, Python `pre-commit`.
+
+```bash
+pnpm install
+cp .env.example .env.dev      # then set OPENAI_API_KEY if AI_PROVIDER=openai
+pnpm db:up                    # Postgres 17 in Docker
+pnpm db:migrate
+pnpm dev                      # http://localhost:3000
+pre-commit install            # once per clone
+```
+
+`pnpm verify` runs typecheck, lint, Vitest and Playwright; it must be green before a slice is committed. Test commands: `pnpm test`, `pnpm e2e`.
+
 ## Documentation
 
 | Document | Contents |

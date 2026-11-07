@@ -1,0 +1,53 @@
+# Quality gates. Install once with `pre-commit install`; every hook runs from a clean clone after `pnpm install`.
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+default_stages: [pre-commit]
+exclude: ^(\.agents/|\.claude/skills/|node_modules/|\.next/|coverage/|drizzle/meta/|pnpm-lock\.yaml$|src/components/ui/)
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-json
+        exclude: (tsconfig.*\.json|components\.json)$
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.19.3
+    hooks:
+      - id: commitizen
+
+  # Project tools: need `pnpm install` first.
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: pnpm exec eslint --max-warnings=0
+        language: system
+        types_or: [ts, tsx]
+        pass_filenames: true
+      - id: typecheck
+        name: tsc --noEmit
+        entry: pnpm typecheck
+        language: system
+        pass_filenames: false
+        types_or: [ts, tsx]
+      - id: vitest
+        name: vitest run
+        entry: pnpm test
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

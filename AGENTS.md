@@ -13,7 +13,14 @@ Draft clinical history summaries (RHC) from Medexis PDF exports, reviewed by Sie
 - `documentos-cliente/`, `exports-medexis/`, `formularios-obras-sociales/` and `propuesta/` hold real patient and client material. They are git-ignored; keep them that way. Never copy their content into fixtures, tests, logs, prompts, issues, commits or chat.
 - Fixtures are synthetic. A real export may be read locally to shape a fixture; the fixture itself contains invented people.
 - No source material or identifier is persisted: no PDF, notes, header fields or file names in the database, logs, telemetry, caches or error messages. Drafts, corrected text and ratings are stored only pseudonymously (ADR-0003).
-- Real exports may be run through the app locally with the key in `.env.dev` within the agreed budget; their text and the drafts made from them never appear in chat, commits or fixtures.
+- Real exports may be run through the app locally with the key in `.env.dev` within the agreed budget. Their text and the drafts made from them never enter commits, fixtures, logs or issues; during the build phase the owner allowed reading generated drafts in chat to debug prompts.
+
+## Run and verify
+
+- `pnpm db:up` starts Postgres in Docker; `pnpm db:migrate` applies `drizzle/`; `pnpm dev` serves on port 3000 reading `.env.dev`.
+- `pnpm verify` is the definition of done for a slice: typecheck, lint, Vitest (unit and integration against Docker Postgres) and Playwright (`tests/e2e`, mock model, port 3100).
+- Hooks: `pre-commit install` once; commit runs eslint and tsc, push runs Vitest. Commits follow Conventional Commits.
+- UI is shadcn/ui on Base UI (`src/components/ui`, generated, not hand-edited); theme tokens live in `src/app/globals.css`.
 
 ## Accounts
 
@@ -29,3 +36,13 @@ English for code, comments, docs and commits. User-facing strings are Spanish (A
 - A behaviour change updates the living docs it affects in the same PR. Each fact has one home; everything else links to it.
 - Decisions go in `docs/adr/NNNN-slug.md` (a few sentences), features in `docs/specs/<feature>.md` (one page), investigations in `docs/investigations/<YYYY-MM-DD>-<slug>.md`.
 - Diagrams are Mermaid.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

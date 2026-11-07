@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: sienes-postgres
+    environment:
+      POSTGRES_USER: sienes
+      POSTGRES_PASSWORD: sienes
+      POSTGRES_DB: sienes
+    ports:
+      - "5432:5432"
+    volumes:
+      - sienes-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sienes -d sienes"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+volumes:
+  sienes-postgres:
