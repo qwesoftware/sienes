@@ -1,15 +1,15 @@
-import { cn } from "@/lib/utils";
+import Image from "next/image";
 
-export function Wordmark({ className }: { className?: string }) {
+// The Sienes logo with blue lettering, for white surfaces (435x125 source).
+export function Wordmark({ height = 28, className }: { height?: number; className?: string }) {
   return (
-    <span
-      className={cn("inline-flex items-baseline gap-1 font-sans leading-none", className)}
-      aria-label="Sienes"
-    >
-      <span className="text-2xl font-semibold tracking-tight text-primary">sienes</span>
-      <span className="text-[0.6rem] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-        Neurorehabilitación
-      </span>
-    </span>
+    <Image
+      src="/logo-blue.png"
+      alt="Sienes, neurorehabilitación"
+      width={Math.round((height * 435) / 125)}
+      height={height}
+      priority
+      className={className}
+    />
   );
 }

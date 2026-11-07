@@ -35,7 +35,7 @@ Sign in, upload one native Medexis PDF per patient (individually or up to 20 in 
 
 ## Brand Commitments
 
-Name: Sienes. Wordmark in Work Sans until a logo file arrives. Theme tokens in `src/app/globals.css`. No other binding identity constraints recorded.
+Name: Sienes. Logo in `public/logo-blue.png` (lettering in the brand blue) and `public/logo.png` (white lettering, for dark surfaces). Theme tokens in `src/app/globals.css`. No other binding identity constraints recorded.
 
 ## Evidence on Hand
 

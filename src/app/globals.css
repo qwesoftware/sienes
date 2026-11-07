@@ -2,6 +2,9 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* No dark theme: the variant stays bound to a .dark class nothing sets, so the
+   generated dark: utilities in components/ui never apply. Without it Tailwind
+   would follow the OS preference. */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -11,6 +14,8 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-brand-blue: var(--brand-blue);
   --color-brand-magenta: var(--brand-magenta);
+  --color-brand-magenta-strong: var(--brand-magenta-strong);
+  --color-brand-magenta-deep: var(--brand-magenta-deep);
   --color-brand-orange: var(--brand-orange);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -55,6 +60,10 @@
   /* Sienes brand: blue primary, magenta for the main action of a step, gray text */
   --brand-blue: #1200b8;
   --brand-magenta: #ff00ac;
+  /* Main action fill: white text on #ff00ac is too faint, so the button uses
+     a darker magenta and an even darker one on hover. */
+  --brand-magenta-strong: #c7007f;
+  --brand-magenta-deep: #a8006b;
   --brand-orange: #ff7900;
   --background: #ffffff;
   --foreground: #2b2b2b;
@@ -65,7 +74,7 @@
   --primary: var(--brand-blue);
   --primary-foreground: #ffffff;
   --secondary: #f2f2f7;
-  --secondary-foreground: var(--brand-blue);
+  --secondary-foreground: #2b2b2b;
   --muted: #f4f4f6;
   --muted-foreground: #676767;
   --accent: #eeedfb;
@@ -90,40 +99,6 @@
   --sidebar-ring: var(--brand-blue);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -133,6 +108,24 @@
   }
   html {
     @apply font-sans;
+    color-scheme: light;
+    /* Keep a focused field clear of the sticky step action bar (57px). */
+    scroll-padding-bottom: 4.5rem;
+  }
+}
+
+/* Popups and dialogs appear without motion when the user asks for less;
+   the spinner keeps turning. */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="dialog-overlay"],
+  [data-slot="dialog-content"],
+  [data-slot="alert-dialog-overlay"],
+  [data-slot="alert-dialog-content"],
+  [data-slot="select-content"],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="dropdown-menu-sub-content"] {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
