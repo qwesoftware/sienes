@@ -53,15 +53,14 @@ export function mockSelect(notes: SourceNote[]): Selection {
   const specialties: Selection["specialties"] = [...groups.entries()].map(([key, entries]) => {
     const sorted = [...entries].sort((a, b) => b.note.recordedDate.localeCompare(a.note.recordedDate));
     const primary = sorted[0];
+    // As the prompt rules: a label override only when the primary note's content contradicts its label.
     const flags: Selection["specialties"][number]["flags"] = [];
-    for (const e of entries) {
-      if (e.override) {
-        flags.push({
-          code: "label-override",
-          message: `La nota está firmada como ${e.note.authorSpecialtyLabel} pero su contenido describe ${specialtyLabel(key)}.`,
-          noteId: e.note.id,
-        });
-      }
+    if (primary.override) {
+      flags.push({
+        code: "label-override",
+        message: `La nota está firmada como ${primary.note.authorSpecialtyLabel} pero su contenido describe ${specialtyLabel(key)}.`,
+        noteId: primary.note.id,
+      });
     }
     if (key === "unknown") flags.push({ code: "unknown-specialty", message: "No se pudo determinar el área de estas notas.", noteId: primary.note.id });
     return {
@@ -70,7 +69,7 @@ export function mockSelect(notes: SourceNote[]): Selection {
       primaryNoteId: primary.note.id,
       primaryKind: primary.kind,
       supportingNoteIds: sorted.slice(1).map((e) => e.note.id),
-      labelOverride: entries.some((e) => e.override),
+      labelOverride: primary.override,
       flags,
     };
   });

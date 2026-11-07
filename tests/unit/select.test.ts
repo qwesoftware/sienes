@@ -16,18 +16,27 @@ const request: SelectRequest = { attemptId: "a1", insurer: "osde", notes };
 const callOptions = { maxRetries: 0 as const, timeout: 1000, providerOptions: {} };
 
 describe("select run", () => {
-  it("flags a note whose content contradicts its author label and excludes administrative notes", async () => {
+  it("keeps a mislabelled supporting note without a label override and excludes administrative notes", async () => {
     const result = await runSelect(request, { model: mockLanguageModel(), modelId: "mock", callOptions });
     const kine = result.selection.specialties.find((s) => s.specialtyKey === "kinesiologia");
     expect(kine).toBeDefined();
     expect(kine!.primaryNoteId).toBe("n4");
     expect(kine!.supportingNoteIds).toEqual(["n2"]);
-    expect(kine!.labelOverride).toBe(true);
-    expect(kine!.flags).toContainEqual(expect.objectContaining({ code: "label-override", noteId: "n2" }));
+    expect(kine!.labelOverride).toBe(false);
+    expect(kine!.flags).toEqual([]);
     expect(result.selection.excludedNoteIds.map((e) => e.noteId)).toEqual(["n3"]);
     expect(result.selection.diagnosisNoteIds).toEqual(["n1"]);
     expect(result.selection.medicationNoteIds).toEqual(["n1"]);
     expect(result.versions).toEqual({ model: "mock", modules: expect.objectContaining({ core: expect.any(String), "insurer/osde": expect.any(String) }) });
+  });
+
+  it("flags a label override when the primary note's content contradicts its author label", async () => {
+    const mislabelledPrimary: SelectRequest = { ...request, notes: notes.filter((n) => n.id !== "n4") };
+    const result = await runSelect(mislabelledPrimary, { model: mockLanguageModel(), modelId: "mock", callOptions });
+    const kine = result.selection.specialties.find((s) => s.specialtyKey === "kinesiologia");
+    expect(kine!.primaryNoteId).toBe("n2");
+    expect(kine!.labelOverride).toBe(true);
+    expect(kine!.flags).toEqual([expect.objectContaining({ code: "label-override", noteId: "n2" })]);
   });
 
   it("rejects a response that cites a note the case does not have", async () => {

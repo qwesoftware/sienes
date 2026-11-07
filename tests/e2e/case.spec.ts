@@ -116,6 +116,18 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
   await expect(page.getByRole("button", { name: "Revisé el contenido" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Motivo de la edición de reason" })).toBeVisible();
 
+  // A reason picked after the second confirmation reaches the stored feedback.
+  const feedbackBodies: { edits: { fieldKey: string; reason: string | null }[] }[] = [];
+  await page.route("**/api/feedback", async (route) => {
+    feedbackBodies.push(route.request().postDataJSON());
+    await route.continue();
+  });
+  await page.getByRole("button", { name: "Revisé el contenido" }).click();
+  await expect(page.getByTestId("case-state")).toHaveText("Revisado");
+  await page.getByRole("combobox", { name: "Motivo de la edición de reason" }).click();
+  await page.getByRole("option", { name: "Redacción" }).click();
+  await expect.poll(() => feedbackBodies.at(-1)?.edits.find((e) => e.fieldKey === "reason")?.reason).toBe("wording");
+
   // Regenerating after manual edits asks first.
   await page.getByRole("button", { name: "Regenerar" }).click();
   await expect(page.getByRole("alertdialog")).toContainText("Se reemplazan las correcciones manuales");

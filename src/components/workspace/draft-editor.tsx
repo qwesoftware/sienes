@@ -46,13 +46,26 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
     ) : null;
   };
 
+  // Ratings and edit reasons do not invalidate a review, so once it is
+  // confirmed every change is sent again to keep the stored feedback current.
+  const syncIfReviewed = () => {
+    if (record.reviewedRevision === record.revision) void sendFeedback(record.id);
+  };
+
   const reasonSelect = (fieldKey: string) => {
     const e = edit(fieldKey);
     if (!e) return null;
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>Editado</span>
-        <Select value={e.reason ?? NO_REASON} items={reasonItems} onValueChange={(v) => dispatch({ type: "set-edit-reason", caseId: record.id, fieldKey, reason: v === NO_REASON || !v ? null : (v as NonNullable<typeof e.reason>) })}>
+        <Select
+          value={e.reason ?? NO_REASON}
+          items={reasonItems}
+          onValueChange={(v) => {
+            dispatch({ type: "set-edit-reason", caseId: record.id, fieldKey, reason: v === NO_REASON || !v ? null : (v as NonNullable<typeof e.reason>) });
+            syncIfReviewed();
+          }}
+        >
           <SelectTrigger size="sm" aria-label={`Motivo de la edición de ${fieldKey}`}>
             <SelectValue />
           </SelectTrigger>
@@ -81,7 +94,7 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
         const value = Number(values[values.length - 1]);
         if (!value) return;
         dispatch({ type: "set-rating", caseId: record.id, fieldKey, value });
-        if (record.reviewedRevision === record.revision) void sendFeedback(record.id);
+        syncIfReviewed();
       }}
     >
       {[1, 2, 3, 4, 5].map((n) => (
