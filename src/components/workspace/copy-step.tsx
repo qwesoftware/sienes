@@ -1,6 +1,5 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { indicacionesText } from "@/case/indicaciones";
@@ -54,10 +53,7 @@ export function CopyStep({ record }: { record: CaseRecord }) {
               {value ? (
                 <span className="font-medium tabular-nums">{value}</span>
               ) : (
-                <span className="flex items-center gap-1.5">
-                  <TriangleAlert className="size-3.5 text-brand-orange" aria-hidden />
-                  Vacío
-                </span>
+                <span className="text-muted-foreground">No figura en la historia</span>
               )}
               <CopyButton variant="ghost" text={value} label="Copiar" ariaLabel={`Copiar ${label}`} />
             </li>

@@ -113,7 +113,7 @@ export function DraftStep({ record, onCopy }: { record: CaseRecord; onCopy: () =
             <AlertDialogTrigger render={<MainAction />}>Revisé el contenido</AlertDialogTrigger>
             <AlertDialogContent initialFocus={cancelRef}>
               <AlertDialogHeader>
-                <AlertDialogTitle>¿Confirmar con pendientes?</AlertDialogTitle>
+                <AlertDialogTitle>¿Confirmar igual?</AlertDialogTitle>
                 <AlertDialogDescription>{pending}.</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

@@ -221,7 +221,7 @@ test("the reviewer generates the draft, corrects it, confirms the review and dow
 
   // A section without content offers to add text instead of an empty box.
   const assessments = page.getByTestId("section-assessments");
-  await expect(assessments).toContainText("Sin contenido en las fuentes.");
+  await expect(assessments).toContainText("No figura en la historia.");
   await assessments.getByRole("button", { name: "Agregar texto" }).click();
   await expect(assessments.getByRole("textbox")).toBeFocused();
 
@@ -289,15 +289,25 @@ test("a feedback storage failure shows a notice but never blocks copy or downloa
   await page.getByLabel("Cargar PDF").setInputFiles("fixtures/exports/caso-c-infantojuvenil.pdf");
   await chooseInsurer(page, "Swiss Medical");
   await page.locator("form").getByRole("button", { name: "Confirmar y analizar" }).click();
+  // The mock only reports missing data; one contradiction is added to see a point to check.
+  await page.route("**/api/generate", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.draft.alerts.push({ code: "contradiction", message: "Dos notas no coinciden.", sectionKey: "reason", noteId: null });
+    await route.fulfill({ response, json: body });
+  });
   await page.getByRole("button", { name: "Generar resumen" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Revisar resumen");
-  // A draft with alerts starts at them.
+  // A draft with points to check starts at them; missing data is a quiet line, not a point to check.
   await expect(page.getByTestId("draft-alerts")).toBeFocused();
+  await expect(page.getByTestId("draft-alerts")).toHaveText("Para revisarMotivo:Dos notas no coinciden.");
+  await expect(page.getByTestId("draft-gaps")).toContainText("No figura en la historia: Práctica, Módulo, Cantidad");
+  await expect(page.getByRole("list", { name: "Casos cargados" })).toContainText("Revisar resumen · 1 para revisar");
   await page.getByRole("group", { name: "Calificación de Motivo" }).getByRole("button", { name: "4 de 5" }).click();
 
-  // Confirming over open alerts and empty portal fields asks first.
+  // Confirming with a point to check asks first; missing data alone does not.
   await page.getByRole("button", { name: "Revisé el contenido" }).click();
-  await expect(page.getByRole("alertdialog")).toContainText("1 alerta abierta · Práctica, Módulo y Cantidad vacíos.");
+  await expect(page.getByRole("alertdialog")).toContainText("Queda 1 punto para revisar.");
   await expect(page.getByRole("alertdialog").getByRole("button", { name: "Cancelar" })).toBeFocused();
   await page.getByRole("button", { name: "Confirmar igual" }).click();
   await expect(page.getByTestId("case-state")).toHaveText("Revisado");

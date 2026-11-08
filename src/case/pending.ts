@@ -1,27 +1,39 @@
-import type { Draft } from "@/contracts/draft";
+import type { Alert, Draft } from "@/contracts/draft";
 
-// Portal fields the reviewer is warned about when empty, with the gender
-// the Spanish adjective agrees with.
-const portalFields: { label: string; feminine: boolean; empty: (d: Draft) => boolean }[] = [
-  { label: "Diagnóstico", feminine: false, empty: (d) => !d.diagnosis.text },
-  { label: "Práctica", feminine: true, empty: (d) => !d.prestacion.practiceCode },
-  { label: "Módulo", feminine: false, empty: (d) => !d.prestacion.module },
-  { label: "Cantidad", feminine: true, empty: (d) => d.prestacion.quantity === null },
+// Codes that say the history lacks something. Every other alert or source flag
+// asks the reviewer to check something (a contradiction, a number without a
+// source, a corrected label) and is the only kind shown as "Para revisar".
+const gapCodes: ReadonlySet<string> = new Set(["missing-information", "no-clinical-content", "no-sources"]);
+
+export const isGap = (item: { code: string }) => gapCodes.has(item.code);
+
+export const checksOf = (draft: Draft): Alert[] => draft.alerts.filter((a) => !isGap(a));
+
+// The portal fields, keyed by the alert section that covers them.
+const portalFields: { label: string; sectionKey: string; empty: (d: Draft) => boolean }[] = [
+  { label: "Diagnóstico", sectionKey: "diagnosis", empty: (d) => !d.diagnosis.text },
+  { label: "Código CIE-10", sectionKey: "diagnosis", empty: (d) => !d.diagnosis.cie10 },
+  { label: "Práctica", sectionKey: "prestacion", empty: (d) => !d.prestacion.practiceCode },
+  { label: "Módulo", sectionKey: "prestacion", empty: (d) => !d.prestacion.module },
+  { label: "Cantidad", sectionKey: "prestacion", empty: (d) => d.prestacion.quantity === null },
 ];
 
-const joinList = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} y ${items.at(-1)}`);
+// What the history does not contain: the empty portal fields and sections by
+// name, plus the gap alerts about anything that is not already empty.
+export function missingInHistory(draft: Draft): { labels: string[]; notes: Alert[] } {
+  const fields = portalFields.filter((f) => f.empty(draft));
+  const sections = draft.sections.filter((s) => s.text === "");
+  const covered = new Set([...fields.map((f) => f.sectionKey), ...sections.map((s) => s.key)]);
+  return {
+    labels: [...fields.map((f) => f.label), ...sections.map((s) => s.title)],
+    notes: draft.alerts.filter((a) => isGap(a) && !(a.sectionKey && covered.has(a.sectionKey))),
+  };
+}
 
-// What is still open when the reviewer confirms: e.g. "1 alerta abierta ·
-// Práctica, Módulo y Cantidad vacíos". Null when nothing is pending.
+// What makes confirming the review ask first: open checks only. Missing data
+// is the usual state of a history and does not ask. Null when nothing is open.
 export function pendingSummary(draft: Draft): string | null {
-  const parts: string[] = [];
-  const n = draft.alerts.length;
-  if (n > 0) parts.push(n === 1 ? "1 alerta abierta" : `${n} alertas abiertas`);
-  const empty = portalFields.filter((f) => f.empty(draft));
-  if (empty.length > 0) {
-    const feminine = empty.every((f) => f.feminine);
-    const adjective = `vací${feminine ? "a" : "o"}${empty.length > 1 ? "s" : ""}`;
-    parts.push(`${joinList(empty.map((f) => f.label))} ${adjective}`);
-  }
-  return parts.length > 0 ? parts.join(" · ") : null;
+  const n = checksOf(draft).length;
+  if (n === 0) return null;
+  return n === 1 ? "Queda 1 punto para revisar" : `Quedan ${n} puntos para revisar`;
 }

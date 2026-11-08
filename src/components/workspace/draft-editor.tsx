@@ -1,6 +1,5 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -8,12 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { checksOf, missingInHistory } from "@/case/pending";
 import type { DraftField } from "@/case/reducer";
 import { useWorkspace } from "@/case/store";
 import type { CaseRecord } from "@/case/types";
-import type { Reference } from "@/contracts/draft";
+import type { Alert, Reference } from "@/contracts/draft";
 import { alertLabels, editReasonLabels, formatDate, plural, titleCase } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { CheckDot } from "./check-dot";
 
 const NO_REASON = "__none__";
 const reasonItems: Record<string, string> = { [NO_REASON]: "Sin motivo", ...editReasonLabels };
@@ -29,14 +30,35 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
   const [chosen, setActive] = useState<string | null>(null);
   if (!draft) return null;
   const scanned = record.parsed?.imageOnlyPages.length ?? 0;
-  const emptySections = draft.sections.filter((section) => section.text === "").length;
+  const checks = checksOf(draft);
+  const missing = missingInHistory(draft);
   const active = chosen ?? draft.sections.find((s) => s.text !== "")?.key ?? PORTAL;
   const edit = (fieldKey: string) => record.edits[fieldKey];
-  const alertsFor = (key: string) => draft.alerts.filter((a) => a.sectionKey === key).length;
+  const checksFor = (key: string) => checks.filter((a) => a.sectionKey === key).length;
   // Where an alert points: a section, or the portal fields for the diagnosis and prestación.
   const anchorOf = (sectionKey: string | null) => (sectionKey ? `${record.id}-${sectionKey === "prestacion" ? "prestacion.practiceCode" : sectionKey}` : null);
   const titleOf = (sectionKey: string | null) =>
     sectionKey === "prestacion" ? "Práctica" : (draft.sections.find((s) => s.key === sectionKey)?.title ?? (sectionKey === "diagnosis" ? "Diagnóstico" : null));
+  // The lead of an alert line: a link to the field or section it is about, else its kind.
+  const aboutLabel = (a: Alert) => {
+    const anchor = anchorOf(a.sectionKey);
+    const title = titleOf(a.sectionKey);
+    if (!anchor || !title) return <span className="mr-1 font-medium">{alertLabels[a.code]}:</span>;
+    return (
+      <a
+        href={`#${anchor}`}
+        className="mr-1 font-medium text-foreground underline underline-offset-2"
+        onClick={(event) => {
+          event.preventDefault();
+          const target = document.getElementById(anchor);
+          target?.scrollIntoView({ block: "center" });
+          target?.focus({ preventScroll: true });
+        }}
+      >
+        {title}:
+      </a>
+    );
+  };
 
   const reasonSelect = (fieldKey: string, label: string) => {
     const e = edit(fieldKey);
@@ -70,19 +92,14 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
 
   const fieldInput = (field: DraftField, label: string, value: string, className: string) => (
     <Field className={cn("gap-1.5", className)}>
-      <FieldLabel htmlFor={`${record.id}-${field}`} className="justify-between font-normal text-muted-foreground">
+      <FieldLabel htmlFor={`${record.id}-${field}`} className="font-normal text-muted-foreground">
         {label}
-        {value === "" ? (
-          <span className="flex items-center gap-1 text-xs text-foreground">
-            <TriangleAlert className="size-3.5 text-brand-orange" aria-hidden />
-            Vacío
-          </span>
-        ) : null}
       </FieldLabel>
       <Input
         id={`${record.id}-${field}`}
         data-testid={`field-${field}`}
         value={value}
+        placeholder="No figura en la historia"
         className="tabular-nums"
         onChange={(e) => dispatch({ type: "edit-field", caseId: record.id, field, value: e.target.value })}
       />
@@ -96,63 +113,42 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
   return (
     <div className="flex flex-col gap-6 md:grid md:grid-cols-[minmax(0,1fr)_18rem] md:items-start md:gap-x-8 xl:grid-cols-[minmax(0,1fr)_26rem]">
       <section className="flex min-w-0 flex-col gap-5" aria-label="Borrador">
-        {draft.alerts.length > 0 ? (
-          <div role="status" data-testid="draft-alerts" tabIndex={-1} className="rounded-xl bg-brand-orange/10 px-4 py-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-            {draft.alerts.length > 1 ? <p className="mb-1.5 font-medium">{draft.alerts.length} alertas</p> : null}
+        {checks.length > 0 ? (
+          <div role="status" data-testid="draft-alerts" tabIndex={-1} className="rounded-xl bg-muted px-4 py-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+            <p className="mb-1.5 font-medium">Para revisar</p>
             <ul className="flex flex-col gap-1">
-              {draft.alerts.map((a, i) => {
-                const anchor = anchorOf(a.sectionKey);
-                const title = titleOf(a.sectionKey);
-                return (
-                  <li key={i}>
-                    <TriangleAlert className="mr-1.5 inline size-3.5 align-[-2px] text-brand-orange" aria-hidden />
-                    {anchor && title ? (
-                      <a
-                        href={`#${anchor}`}
-                        className="mr-1 font-medium underline underline-offset-2"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          const target = document.getElementById(anchor);
-                          target?.scrollIntoView({ block: "center" });
-                          target?.focus({ preventScroll: true });
-                        }}
-                      >
-                        {title}:
-                      </a>
-                    ) : (
-                      <span className="mr-1 font-medium">{alertLabels[a.code]}:</span>
-                    )}
+              {checks.map((a, i) => (
+                <li key={i} className="flex items-baseline gap-2.5">
+                  <CheckDot className="-translate-y-0.5" />
+                  <span>
+                    {aboutLabel(a)}
                     {a.message}
-                  </li>
-                );
-              })}
+                  </span>
+                </li>
+              ))}
             </ul>
           </div>
         ) : null}
 
-        {scanned > 0 || emptySections > 0 ? (
-          <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-testid="draft-gaps">
-            {scanned > 0 ? (
-              <span className="flex items-center gap-1.5">
-                <TriangleAlert className="size-3.5 text-brand-orange" aria-hidden />
-                {plural(scanned, "página escaneada ignorada", "páginas escaneadas ignoradas")}
-              </span>
-            ) : null}
-            {emptySections > 0 ? (
-              <span className="flex items-center gap-1.5">
-                <TriangleAlert className="size-3.5 text-brand-orange" aria-hidden />
-                {plural(emptySections, "sección sin contenido", "secciones sin contenido")}
-              </span>
-            ) : null}
-          </p>
+        {missing.labels.length > 0 || missing.notes.length > 0 || scanned > 0 ? (
+          <div className="flex flex-col gap-1 text-sm text-muted-foreground" data-testid="draft-gaps">
+            {missing.labels.length > 0 ? <p>No figura en la historia: {missing.labels.join(", ")}.</p> : null}
+            {missing.notes.map((a, i) => (
+              <p key={i}>
+                {aboutLabel(a)}
+                {a.message}
+              </p>
+            ))}
+            {scanned > 0 ? <p>{plural(scanned, "página escaneada ignorada", "páginas escaneadas ignoradas")}.</p> : null}
+          </div>
         ) : null}
 
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5" onFocusCapture={() => setActive(PORTAL)} data-testid="portal-fields">
-          <h3 className={cn("col-span-2 text-sm font-semibold xl:col-span-5", active === PORTAL && "text-primary")}>Datos del portal</h3>
-          {fieldInput("diagnosis.text", "Diagnóstico", draft.diagnosis.text ?? "", "col-span-2 xl:col-span-5")}
+        <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2" onFocusCapture={() => setActive(PORTAL)} data-testid="portal-fields">
+          <h3 className={cn("text-sm font-semibold sm:col-span-2", active === PORTAL && "text-primary")}>Datos del portal</h3>
+          {fieldInput("diagnosis.text", "Diagnóstico", draft.diagnosis.text ?? "", "sm:col-span-2")}
           {fieldInput("diagnosis.cie10", "Código CIE-10", draft.diagnosis.cie10 ?? "", "")}
           {fieldInput("prestacion.practiceCode", "Práctica", draft.prestacion.practiceCode ?? "", "")}
-          {fieldInput("prestacion.module", "Módulo", draft.prestacion.module ?? "", "xl:col-span-2")}
+          {fieldInput("prestacion.module", "Módulo", draft.prestacion.module ?? "", "")}
           {fieldInput("prestacion.quantity", "Cantidad", draft.prestacion.quantity === null ? "" : String(draft.prestacion.quantity), "")}
         </div>
 
@@ -164,9 +160,9 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
               <FieldLabel htmlFor={id} className={cn("text-sm font-semibold", active === section.key && "text-primary")}>
                 {section.title}
               </FieldLabel>
-              {alertsFor(section.key) > 0 ? (
-                <span className="flex items-center gap-1 text-xs text-foreground">
-                  <TriangleAlert className="size-3.5 text-brand-orange" aria-hidden />
+              {checksFor(section.key) > 0 ? (
+                <span className="flex items-center gap-1.5 text-xs">
+                  <CheckDot />
                   Para revisar
                 </span>
               ) : null}
@@ -176,11 +172,11 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
           if (section.key === "diagnosis" && section.text !== "" && section.text === draft.diagnosis.text && !opened.has(section.key) && !edit(section.key)) {
             return (
               <div key={section.key} id={id} tabIndex={-1} className="flex items-center justify-between gap-2 text-sm" data-testid={`section-${section.key}`} onPointerDown={() => setActive(section.key)} onFocusCapture={() => setActive(section.key)}>
-                <span className="flex flex-wrap items-center gap-2">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   {heading}
                   <span className="text-muted-foreground">Igual que en Datos del portal.</span>
                 </span>
-                <Button variant="ghost" size="sm" onClick={() => setOpened((prev) => new Set(prev).add(section.key))}>
+                <Button variant="ghost" size="sm" className="-mr-2.5 shrink-0" onClick={() => setOpened((prev) => new Set(prev).add(section.key))}>
                   Editar aparte
                 </Button>
               </div>
@@ -189,14 +185,11 @@ export function DraftEditor({ record }: { record: CaseRecord }) {
           if (empty) {
             return (
               <div key={section.key} id={id} tabIndex={-1} className="flex items-center justify-between gap-2 text-sm" data-testid={`section-${section.key}`} onPointerDown={() => setActive(section.key)} onFocusCapture={() => setActive(section.key)}>
-                <span className="flex flex-wrap items-center gap-2">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   {heading}
-                  <span className="flex items-center gap-1.5">
-                    <TriangleAlert className="size-3.5 text-brand-orange" aria-hidden />
-                    Sin contenido en las fuentes.
-                  </span>
+                  <span className="text-muted-foreground">No figura en la historia.</span>
                 </span>
-                <Button variant="ghost" size="sm" onClick={() => setOpened((prev) => new Set(prev).add(section.key))}>
+                <Button variant="ghost" size="sm" className="-mr-2.5 shrink-0" onClick={() => setOpened((prev) => new Set(prev).add(section.key))}>
                   Agregar texto
                 </Button>
               </div>

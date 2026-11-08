@@ -1,9 +1,9 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { isGap } from "@/case/pending";
 import { useWorkspace } from "@/case/store";
 import type { CaseRecord } from "@/case/types";
 import type { SelectedSpecialty, Selection } from "@/contracts/ai";
@@ -11,6 +11,7 @@ import type { Note } from "@/contracts/case";
 import { flagLabels, formatDate, noteKindLabels, plural, titleCase } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { specialties, specialtyLabel } from "@/parser/specialties";
+import { CheckDot } from "./check-dot";
 import { Disclosure } from "./disclosure";
 
 const NONE = "__none__";
@@ -122,14 +123,20 @@ export function SourcesPanel({ record, readOnly = false }: { record: CaseRecord;
                       </SelectContent>
                     </Select>
                   )}
-                  {specialty.flags.map((flag, i) => (
-                    <p key={i} className="flex gap-1.5 text-[13px]" data-testid={`flag-${flag.code}`}>
-                      <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-brand-orange" aria-hidden />
-                      <span>
-                        <span className="font-medium">{flagLabels[flag.code]}.</span> {flag.message}
-                      </span>
-                    </p>
-                  ))}
+                  {specialty.flags.map((flag, i) =>
+                    isGap(flag) ? (
+                      <p key={i} className="text-[13px] text-muted-foreground" data-testid={`flag-${flag.code}`}>
+                        {flag.message}
+                      </p>
+                    ) : (
+                      <p key={i} className="flex items-baseline gap-2 text-[13px]" data-testid={`flag-${flag.code}`}>
+                        <CheckDot className="-translate-y-0.5" />
+                        <span>
+                          <span className="font-medium">{flagLabels[flag.code]}.</span> {flag.message}
+                        </span>
+                      </p>
+                    ),
+                  )}
                   {primary ? (
                     <Disclosure summary={`Leer ${noteKindLabels[specialty.primaryKind].toLowerCase()}`}>
                       <NoteText note={primary} />

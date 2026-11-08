@@ -1,6 +1,5 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -15,13 +14,13 @@ import { cn } from "@/lib/utils";
 import { MainAction } from "./main-action";
 import { StepActions, StepBody } from "./step-actions";
 
-const fields: { key: keyof Omit<Header, "cud">; label: string; wide?: boolean }[] = [
+const fields: { key: keyof Omit<Header, "cud">; label: string; wide?: boolean; wideOnPhone?: boolean }[] = [
   { key: "patientName", label: "Paciente", wide: true },
   { key: "documentNumber", label: "DNI" },
   { key: "birthDate", label: "Fecha de nacimiento" },
   { key: "age", label: "Edad" },
   { key: "memberNumber", label: "Nº de afiliado" },
-  { key: "coverageCode", label: "Cobertura" },
+  { key: "coverageCode", label: "Cobertura", wideOnPhone: true },
   { key: "plan", label: "Plan" },
 ];
 
@@ -49,12 +48,7 @@ export function HeaderForm({ record, onContinue }: { record: CaseRecord; onConti
     <p className="mb-5 text-sm text-muted-foreground tabular-nums" data-testid="export-summary">
       {parsed.dateRange ? `${formatDate(parsed.dateRange.from)} al ${formatDate(parsed.dateRange.to)}` : "Sin notas fechadas"} · {plural(parsed.notes.length, "nota", "notas")} ·{" "}
       {plural(parsed.pageCount, "página", "páginas")}
-      {parsed.imageOnlyPages.length > 0 ? (
-        <span className="ml-2 inline-flex items-center gap-1 text-foreground">
-          <TriangleAlert className="size-3.5 text-brand-orange" aria-hidden />
-          {plural(parsed.imageOnlyPages.length, "página escaneada ignorada", "páginas escaneadas ignoradas")}
-        </span>
-      ) : null}
+      {parsed.imageOnlyPages.length > 0 ? ` · ${plural(parsed.imageOnlyPages.length, "página escaneada ignorada", "páginas escaneadas ignoradas")}` : null}
     </p>
   );
 
@@ -102,14 +96,16 @@ export function HeaderForm({ record, onContinue }: { record: CaseRecord; onConti
         {exportFacts}
         <div className="flex max-w-3xl flex-col gap-7">
           <div className="grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-3">
-            {fields.map(({ key, label, wide }) => {
+            {fields.map(({ key, label, wide, wideOnPhone }) => {
               const field = header[key];
               const id = `${record.id}-${key}`;
+              // Only the patient's name blocks confirmation; any other field may be absent from the history.
+              const blocking = field.status === "missing" && key === "patientName";
               return (
-                <Field key={key} className={cn("gap-1.5", wide && "col-span-2")} data-invalid={field.status === "missing" && key === "patientName" ? true : undefined}>
+                <Field key={key} className={cn("gap-1.5", wide && "col-span-2", wideOnPhone && "col-span-2 md:col-span-1")} data-invalid={blocking || undefined}>
                   <FieldLabel htmlFor={id} className="justify-between font-normal text-muted-foreground">
                     {label}
-                    {field.status === "missing" ? (
+                    {blocking ? (
                       <span className="font-medium text-destructive" data-testid={`status-${key}`}>
                         Falta
                       </span>
@@ -121,8 +117,9 @@ export function HeaderForm({ record, onContinue }: { record: CaseRecord; onConti
                   </FieldLabel>
                   <Input
                     id={id}
-                    aria-invalid={field.status === "missing" ? true : undefined}
+                    aria-invalid={blocking || undefined}
                     value={field.value ?? ""}
+                    placeholder={field.status === "missing" && !blocking ? "No figura en la historia" : undefined}
                     className="tabular-nums"
                     onChange={(e) => dispatch({ type: "edit-header", caseId: record.id, field: key, value: e.target.value })}
                   />
