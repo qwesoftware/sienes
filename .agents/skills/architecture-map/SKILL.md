@@ -4,7 +4,7 @@ description: Explains a codebase concepts-first and creates or updates docs/ARCH
 license: MIT
 metadata:
   author: ivandda
-  version: "1.1"
+  version: "1.2"
 ---
 
 # Architecture Map
@@ -13,7 +13,7 @@ Give the user and future agents an accurate mental model of the codebase. **Conc
 
 ## Choose the mode
 
-- **Explain**: a question about one part ("how does X work?"). Answer in chat: one plain paragraph, 3–7 numbered steps naming parts, then the `path:line` references. Add a small diagram only if the flow branches or has many actors. Write files only if the user asks; offer to fold the answer into `docs/ARCHITECTURE.md` when it would help future sessions.
+- **Explain**: a question about one part ("how does X work?"). Answer in chat: one plain paragraph, 3–7 numbered steps naming parts, then the `path:line` references. Add a small diagram only if the flow branches or has many actors. Write files only if the user asks; when the answer would help future sessions, say where it belongs: existing behaviour in `docs/ARCHITECTURE.md` or the area's page, a decision in `docs/adr/`, an incident in `docs/investigations/`.
 - **Map**: no `docs/ARCHITECTURE.md` yet. Explore, then write it from [references/template.md](references/template.md).
 - **Update**: the doc exists. Find what changed since its `Updated:` commit (`git log --oneline <commit>..HEAD --stat`), then update the affected sections and the `Updated:` line.
 
@@ -50,6 +50,7 @@ If steps 1–5 leave real gaps, delegate to a single subagent started with a fre
 - Every file path in the doc or answer exists (`ls` them).
 - Every part, step and arrow traces to code you read: an import, a call, a foreign key. Mark anything unconfirmed `(unverified)` or remove it.
 - Every Mermaid block renders: with `npx` available, run `npx -y @mermaid-js/mermaid-cli -i block.mmd -o /tmp/block.svg` per block; otherwise re-read each block against the rules above.
+- With the `docs-maintenance` skill installed, its `scripts/check-docs.sh docs/ARCHITECTURE.md` runs the path, link and Mermaid checks above.
 - The doc is ≤ ~120 lines, within the diagram budget, and links to other docs instead of copying them.
 - The `Updated:` line holds today's date and `git rev-parse --short HEAD`.
 
