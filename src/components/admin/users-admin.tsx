@@ -2,7 +2,6 @@
 
 import { useState, type FormEvent } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { MainAction } from "@/components/workspace/main-action";
 import { apiFetch } from "@/lib/client-api";
 import type { Role, UserRow } from "@/lib/users";
 
@@ -54,9 +54,9 @@ export function UsersAdmin({ initialUsers, currentUserId }: { initialUsers: User
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-8">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-xl font-medium">Usuarios</h1>
+        <h1 className="text-xl font-semibold">Usuarios</h1>
         <NewUserDialog
           onCreated={(user, password) => {
             setUsers((list) => [...list, user].sort((a, b) => a.name.localeCompare(b.name)));
@@ -71,7 +71,7 @@ export function UsersAdmin({ initialUsers, currentUserId }: { initialUsers: User
             {credential.reason === "created" ? "Usuario creado" : "Contraseña restablecida"}: {credential.email}
           </AlertTitle>
           <AlertDescription>
-            Contraseña temporal (se muestra una sola vez; la persona deberá cambiarla al ingresar):{" "}
+            Contraseña temporal, se muestra una sola vez:{" "}
             <code className="rounded bg-muted px-1 py-0.5 font-mono" data-testid="temporary-password">
               {credential.password}
             </code>
@@ -89,10 +89,12 @@ export function UsersAdmin({ initialUsers, currentUserId }: { initialUsers: User
         <TableHeader>
           <TableRow>
             <TableHead>Nombre</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Rol</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead className="text-right">Acciones</TableHead>
+            <TableHead className="hidden md:table-cell">Email</TableHead>
+            <TableHead className="hidden sm:table-cell">Rol</TableHead>
+            <TableHead className="hidden sm:table-cell">Estado</TableHead>
+            <TableHead>
+              <span className="sr-only">Acciones</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -101,20 +103,23 @@ export function UsersAdmin({ initialUsers, currentUserId }: { initialUsers: User
             const busy = busyId === user.id;
             return (
               <TableRow key={user.id} data-testid={`user-row-${user.email}`}>
-                <TableCell>{user.name}</TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{user.role === "admin" ? "Administrador" : "Usuario"}</TableCell>
-                <TableCell>
-                  {user.disabled ? (
-                    <Badge variant="outline">Deshabilitado</Badge>
-                  ) : (
-                    <Badge variant="secondary">Activo</Badge>
-                  )}
+                <TableCell className="whitespace-normal">
+                  {user.name}
+                  {/* Narrow windows fold the hidden columns under the name. */}
+                  <span className="block text-xs text-muted-foreground md:hidden">{user.email}</span>
+                  <span className="block text-xs text-muted-foreground sm:hidden">
+                    {user.role === "admin" ? "Administrador" : "Usuario"} · {user.disabled ? "Deshabilitado" : "Activo"}
+                  </span>
+                </TableCell>
+                <TableCell className="hidden md:table-cell">{user.email}</TableCell>
+                <TableCell className="hidden sm:table-cell">{user.role === "admin" ? "Administrador" : "Usuario"}</TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  {user.disabled ? <span className="text-muted-foreground">Deshabilitado</span> : "Activo"}
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end sm:gap-2">
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       disabled={busy || self}
                       onClick={() => act(user, "reset-password")}
@@ -122,11 +127,11 @@ export function UsersAdmin({ initialUsers, currentUserId }: { initialUsers: User
                       Restablecer contraseña
                     </Button>
                     {user.disabled ? (
-                      <Button variant="outline" size="sm" disabled={busy} onClick={() => act(user, "enable")}>
+                      <Button variant="ghost" size="sm" disabled={busy} onClick={() => act(user, "enable")}>
                         Habilitar
                       </Button>
                     ) : (
-                      <Button variant="destructive" size="sm" disabled={busy || self} onClick={() => act(user, "disable")}>
+                      <Button variant="ghost" size="sm" className="text-destructive" disabled={busy || self} onClick={() => act(user, "disable")}>
                         {busy ? <Spinner data-icon="inline-start" aria-hidden /> : null}
                         Deshabilitar
                       </Button>
@@ -173,12 +178,12 @@ function NewUserDialog({ onCreated }: { onCreated: (user: UserRow, password: str
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>Nuevo usuario</DialogTrigger>
+      <DialogTrigger render={<MainAction />}>Nuevo usuario</DialogTrigger>
       <DialogContent showCloseButton={false}>
         <form onSubmit={onSubmit} className="flex flex-col gap-6" noValidate>
           <DialogHeader>
             <DialogTitle>Nuevo usuario</DialogTitle>
-            <DialogDescription>Se genera una contraseña temporal que deberá cambiar al ingresar.</DialogDescription>
+            <DialogDescription>Recibe una contraseña temporal.</DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field>
@@ -199,8 +204,8 @@ function NewUserDialog({ onCreated }: { onCreated: (user: UserRow, password: str
                 }}
                 aria-label="Rol"
               >
-                <ToggleGroupItem value="user">Usuario</ToggleGroupItem>
-                <ToggleGroupItem value="admin">Administrador</ToggleGroupItem>
+                <ToggleGroupItem value="user" className="rounded-full! border border-input px-4 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90">Usuario</ToggleGroupItem>
+                <ToggleGroupItem value="admin" className="rounded-full! border border-input px-4 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90">Administrador</ToggleGroupItem>
               </ToggleGroup>
             </Field>
           </FieldGroup>
@@ -211,10 +216,10 @@ function NewUserDialog({ onCreated }: { onCreated: (user: UserRow, password: str
           ) : null}
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancelar</DialogClose>
-            <Button type="submit" disabled={pending || !name || !email}>
+            <MainAction type="submit" className="h-8 px-3" disabled={pending || !name || !email}>
               {pending ? <Spinner data-icon="inline-start" aria-hidden /> : null}
               Crear
-            </Button>
+            </MainAction>
           </DialogFooter>
         </form>
       </DialogContent>

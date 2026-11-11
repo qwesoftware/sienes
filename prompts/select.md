@@ -1,9 +1,11 @@
 ---
-version: 2026-11-06.4
+version: 2026-11-07.1
 ---
 Tarea: SELECCIÓN DE FUENTES.
 
 Leé todas las notas y devolvé, por cada especialidad presente en el contenido, la entrada que mejor describe el estado actual (`primaryNoteId`) y las notas que la sostienen (`supportingNoteIds`). Clasificá cada entrada principal con `primaryKind`: `report` (informe completo o evaluación), `progress-note` (nota de evolución), `administrative`, `prior-summary` (un RHC o resumen anterior) o `ambiguous`.
+
+- `supportingNoteIds` son pocas: solo las notas que agregan al estado actual de esa área algo que la principal no dice (una evolución posterior, un cambio de plan, una contradicción). No sumes cada sesión de rutina que repite lo mismo; elegí la más reciente de ellas. Una nota firmada por otra especialidad entra solo si su contenido describe esta área. Rara vez hacen falta más de cinco.
 
 - `specialtyKey` usa las claves del catálogo que se listan en el mensaje; si ninguna aplica, usá `unknown` con `specialtyLabel` "Sin especialidad identificada" y un flag `unknown-specialty`. `unknown` es para notas clínicas de un área que no podés identificar.
 - Un resumen anterior, un RHC o un informe interdisciplinario nunca forman un área propia: van como nota de apoyo de cada área que describen y en `diagnosisNoteIds`, `historyNoteIds` o `medicationNoteIds` según lo que documenten.

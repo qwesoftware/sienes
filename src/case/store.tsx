@@ -11,8 +11,9 @@ import { createIdleTimer, type IdleTimer } from "./idle-timer";
 import { runQueue } from "./queue";
 import { initialWorkspace, workspaceReducer, type WorkspaceAction } from "./reducer";
 import { batchCandidates, createRunner, type CaseRunner, type Transport } from "./runner";
+import { afterConfirm } from "./stage";
 import { nextPendingId } from "./summary";
-import type { WorkspaceState } from "./types";
+import type { CaseRecord, WorkspaceState } from "./types";
 
 export type SessionNotice = { kind: "warning"; remainingMs: number } | null;
 
@@ -35,6 +36,8 @@ type WorkspaceContextValue = {
   continueWorking: () => void;
   // Clinical calls in flight pause the idle timer.
   beginClinicalCall: () => () => void;
+  // Confirms the case's data and starts whatever comes next (see afterConfirm).
+  confirmCase: (caseId: string) => void;
   analyze: (caseId: string) => Promise<void>;
   generate: (caseId: string) => Promise<void>;
   cancelAttempt: (caseId: string) => void;
@@ -227,18 +230,38 @@ export function WorkspaceProvider({ limits, userEmail, children }: { limits: Pub
     for (const c of state.cases) if (c.feedbackStatus === "stale") void runner.current?.syncFeedback(c);
   }, [state.cases]);
 
-  const runBatch = useCallback(async () => {
-    const candidates = batchCandidates(state.cases);
-    if (candidates.length === 0) return;
-    batchCanceled.current = false;
-    setBatchIds(candidates.map((c) => c.id));
-    try {
-      const isCanceled = () => batchCanceled.current;
-      await runQueue(candidates, limits.BATCH_CONCURRENCY, async (record) => runner.current?.runPending(record, isCanceled), isCanceled);
-    } finally {
-      setBatchIds(null);
-    }
-  }, [limits.BATCH_CONCURRENCY, state.cases]);
+  const runBatchOf = useCallback(
+    async (cases: CaseRecord[]) => {
+      const candidates = batchCandidates(cases);
+      if (candidates.length === 0) return;
+      batchCanceled.current = false;
+      setBatchIds(candidates.map((c) => c.id));
+      try {
+        const isCanceled = () => batchCanceled.current;
+        await runQueue(candidates, limits.BATCH_CONCURRENCY, async (record) => runner.current?.runPending(record, isCanceled), isCanceled);
+      } finally {
+        setBatchIds(null);
+      }
+    },
+    [limits.BATCH_CONCURRENCY],
+  );
+
+  const runBatch = useCallback(() => runBatchOf(state.cases), [runBatchOf, state.cases]);
+
+  const confirmCase = useCallback(
+    (caseId: string) => {
+      const next = afterConfirm(state.cases, caseId);
+      const action = { type: "confirm-header", caseId } as const;
+      dispatch(action);
+      // The runner needs the confirmed record now, before the render that would carry it.
+      const { cases } = workspaceReducer(state, action);
+      if (next.kind === "next") dispatch({ type: "select-case", caseId: next.caseId });
+      if (next.kind === "batch") void runBatchOf(cases);
+      const record = cases.find((c) => c.id === caseId);
+      if (next.kind === "analyze" && record) void runner.current?.analyze(record);
+    },
+    [runBatchOf, state],
+  );
 
   // Progress of the running batch: a case is done once it holds a draft or stopped in error.
   const batchProgress = useMemo(() => {
@@ -249,8 +272,8 @@ export function WorkspaceProvider({ limits, userEmail, children }: { limits: Pub
   }, [batchIds, state.cases]);
 
   const value = useMemo<WorkspaceContextValue>(
-    () => ({ state, dispatch, limits, userEmail, addFiles, filePicker, selectNextPending, endSession, leave, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchRunning: batchIds !== null, batchProgress, runBatch, cancelBatch }),
-    [state, limits, userEmail, addFiles, selectNextPending, endSession, leave, notice, continueWorking, beginClinicalCall, analyze, generate, cancelAttempt, batchIds, batchProgress, runBatch, cancelBatch],
+    () => ({ state, dispatch, limits, userEmail, addFiles, filePicker, selectNextPending, endSession, leave, notice, continueWorking, beginClinicalCall, confirmCase, analyze, generate, cancelAttempt, batchRunning: batchIds !== null, batchProgress, runBatch, cancelBatch }),
+    [state, limits, userEmail, addFiles, selectNextPending, endSession, leave, notice, continueWorking, beginClinicalCall, confirmCase, analyze, generate, cancelAttempt, batchIds, batchProgress, runBatch, cancelBatch],
   );
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

@@ -106,11 +106,23 @@
   body {
     @apply bg-background text-foreground;
   }
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
   html {
     @apply font-sans;
     color-scheme: light;
-    /* Keep a focused field clear of the sticky step action bar (57px). */
+    /* Keep a focused field clear of the sticky case header and stage bar. */
+    scroll-padding-top: 11rem;
     scroll-padding-bottom: 4.5rem;
+  }
+  /* On phones the sources dock above the stage bar, so a field has to clear them too. */
+  @media (width < 48rem) {
+    html {
+      scroll-padding-top: 4.5rem;
+      scroll-padding-bottom: calc(32dvh + 4.5rem);
+    }
   }
 }
 
@@ -127,6 +139,12 @@
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Dialogs dim the page but keep it legible: the draft being confirmed stays readable. */
+[data-slot="dialog-overlay"],
+[data-slot="alert-dialog-overlay"] {
+  backdrop-filter: none !important;
 }
 
 @layer utilities {

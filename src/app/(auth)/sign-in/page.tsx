@@ -17,7 +17,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   const notice = motivo ? notices.get(motivo) : undefined;
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-lg font-medium">Ingresar</h1>
+      <h1 className="sr-only">Ingresar</h1>
       {notice ? (
         <Alert role="status">
           <AlertDescription>{notice}</AlertDescription>

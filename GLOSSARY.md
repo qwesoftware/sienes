@@ -81,7 +81,7 @@ A pointer from RHC content to a source note and page.
 _Avoid_: citation, link
 
 **Alert**:
-A message to the reviewer about missing, contradictory or ambiguous information, shown with its location. Not an error.
+A message to the reviewer about missing, contradictory or ambiguous information, shown with its location. Not an error. Two kinds: a **gap** says the history lacks something (missing information, no clinical content, no sources) and is shown quietly as "No figura en la historia"; a **check** asks the reviewer to verify something (contradiction, number without a source, corrected label, ambiguous source) and is listed under "Para revisar". Only checks ask before confirming the review.
 _Avoid_: warning, issue
 
 **Review confirmation** (Revisé el contenido):

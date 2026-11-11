@@ -11,11 +11,11 @@ export function formatDate(iso: string): string {
 export const stateLabels: Record<CaseState, string> = {
   reading: "Leyendo",
   "confirmation-required": "Confirmar datos",
-  "ready-to-analyze": "Listo para analizar",
+  "ready-to-analyze": "Analizar fuentes",
   analyzing: "Analizando",
-  "ready-to-generate": "Listo para generar",
+  "ready-to-generate": "Revisar fuentes",
   generating: "Generando",
-  draft: "Borrador",
+  draft: "Revisar resumen",
   reviewed: "Revisado",
   error: "Error",
   canceled: "Cancelado",
@@ -58,6 +58,11 @@ export const editReasonLabels: Record<NonNullable<EditEvent["reason"]>, string> 
   wording: "Redacción",
   "source-selection": "Selección de fuentes",
 };
+
+// Medexis writes names in capitals: "RUIZ DIAZ CARLOS" reads as "Ruiz Diaz Carlos".
+export function titleCase(text: string): string {
+  return text.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, gap: string, letter: string) => gap + letter.toUpperCase());
+}
 
 // "1 nota", "3 notas".
 export function plural(n: number, singular: string, pluralForm: string): string {

@@ -4,7 +4,7 @@ description: Sets up, audits, or extends a repository's pre-commit hook stack (.
 license: MIT
 metadata:
   author: ivandda
-  version: "2.2"
+  version: "2.3"
 ---
 
 # Pre-commit Stack

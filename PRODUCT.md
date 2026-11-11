@@ -22,7 +22,7 @@ Drafts carry references to the exact source notes and alerts for missing or cont
 
 ## Operating Context
 
-Sign in, upload one native Medexis PDF per patient (individually or up to 20 in a batch), confirm the header (patient, DNI, member number, insurer, CUD), let the AI propose the sources per specialty, confirm or adjust them, generate, correct, confirm the review, then copy fields or download Word (ZIP for batches). The session lives only in the browser tab: there is no case history. Staff terms: Revisé el contenido, informe, nota de evolución, Indicaciones.
+Sign in, upload one native Medexis PDF per patient (individually or up to 20 in a batch), confirm the header (patient, DNI, member number, insurer, CUD), which starts the AI proposal of the sources per specialty (a batch skips to drafts with the proposed sources), confirm or adjust them, generate, correct, confirm the review, then copy fields or download Word (ZIP for batches). The session lives only in the browser tab: there is no case history. Staff terms: Revisé el contenido, informe, nota de evolución, Indicaciones.
 
 ## Capabilities and Constraints
 

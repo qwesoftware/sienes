@@ -86,17 +86,19 @@ Never run Biome and Prettier on the same file types.
 | `markdownlint-cli2` | `DavidAnson/markdownlint-cli2` | pre-commit | Docs-heavy repos only |
 | `markdown-link-check` | `tcort/markdown-link-check` | pre-commit | Catches broken relative links. Keep it offline with a config whose `ignorePatterns` skips `^https?://`; check external links in CI |
 
-Specs and design docs must carry a status, or they read as current truth. A local hook:
+Docs that name paths, link to files or carry status lines go stale silently. The `docs-maintenance` skill ships `check-docs.sh` (paths in backticks exist, relative links resolve, specs carry `Status:`, runbooks carry `Verified:`, Mermaid renders). As a hook, without the slow Mermaid step:
 
 ```yaml
 - repo: local
   hooks:
-    - id: spec-status
-      name: specs carry a Status line
-      entry: bash -c 'for f in "$@"; do head -5 "$f" | grep -q "^Status:" || { echo "$f: no Status: line in the first 5 lines"; exit 1; }; done' --
+    - id: check-docs
+      name: docs paths, links and status lines
+      entry: .agents/skills/docs-maintenance/scripts/check-docs.sh --no-mermaid
       language: system
-      files: ^docs/(specs|design)/.*\.md$
+      files: \.md$
 ```
+
+Copy the script into the repo's `scripts/` folder when `.agents/skills/` isn't committed, and run it with Mermaid in CI.
 
 ## Security and supply chain
 

@@ -14,146 +14,118 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { pendingSummary } from "@/case/pending";
 import { useWorkspace } from "@/case/store";
-import { nextPendingId } from "@/case/summary";
 import type { CaseRecord } from "@/case/types";
-import { insurerLabels } from "@/contracts/case";
 import { DraftEditor } from "./draft-editor";
 import { MainAction } from "./main-action";
-import { StepActions } from "./step-actions";
+import { RunNotice } from "./run-notice";
+import { StepActions, StepBody } from "./step-actions";
 import { useFocusWhen } from "./use-focus-when";
 
 // A new draft is focused at its alerts when it has any, else at its top.
 const alertsOrSelf = (el: HTMLDivElement) => el.querySelector<HTMLElement>('[data-testid="draft-alerts"]') ?? el;
 
-// Step 3: generation, review confirmation bound to the revision, and downloads.
-export function DraftStep({ record }: { record: CaseRecord }) {
-  const { state, dispatch, generate, cancelAttempt, selectNextPending } = useWorkspace();
-  const ready = Boolean(record.selection && record.headerConfirmed);
-  const generateRef = useFocusWhen<HTMLButtonElement>(ready && !record.draft && record.state === "ready-to-generate");
+export function FeedbackNotice({ record }: { record: CaseRecord }) {
+  const { dispatch } = useWorkspace();
+  if (record.feedbackStatus !== "failed") return null;
+  return (
+    <span className="flex items-center gap-2" role="status">
+      No se pudo guardar el feedback.
+      <Button variant="ghost" size="sm" onClick={() => dispatch({ type: "feedback-status", caseId: record.id, status: "stale" })}>
+        Reintentar
+      </Button>
+    </span>
+  );
+}
+
+// The review stage: the generation run and the confirmation bound to the revision.
+export function DraftStep({ record, onCopy }: { record: CaseRecord; onCopy: () => void }) {
+  const { dispatch, generate, cancelAttempt, batchRunning } = useWorkspace();
   // A new draft puts focus at its top (alerts first), not at the review button at the bottom.
-  const draftRef = useFocusWhen<HTMLDivElement>(ready && record.draft !== null && record.state === "draft" && record.reviewedRevision === null, alertsOrSelf);
+  const draftRef = useFocusWhen<HTMLDivElement>(record.draft !== null && record.state === "draft" && record.reviewedRevision === null, alertsOrSelf);
   const cancelRef = useRef<HTMLButtonElement>(null);
-  if (!ready) return null;
 
   if (record.state === "generating") {
     return (
-      <div className="flex items-center gap-3 text-sm text-muted-foreground" role="status">
-        <Spinner aria-hidden /> Generando el resumen…
-        <Button variant="outline" size="sm" onClick={() => cancelAttempt(record.id)}>
-          Cancelar
-        </Button>
-      </div>
+      <>
+        <RunNotice title="Generando el resumen…" detail="Se escribe solo con las notas elegidas en Fuentes. Después lo revisás antes de copiarlo." />
+        <StepActions>
+          <Button variant="outline" onClick={() => cancelAttempt(record.id)}>
+            {batchRunning ? "Cancelar este caso" : "Cancelar"}
+          </Button>
+        </StepActions>
+      </>
     );
   }
 
+  if (!record.draft) return null;
   const reviewed = record.reviewedRevision === record.revision;
   const edited = Object.keys(record.edits).length > 0;
-  const pending = record.draft ? pendingSummary(record.draft) : null;
+  const pending = pendingSummary(record.draft);
+  const stale = !reviewed && record.reviewedRevision !== null;
   const confirmReview = () => dispatch({ type: "confirm-review", caseId: record.id });
 
-  const download = async () => {
-    if (!record.draft || !record.header || !record.insurer) return;
-    // Loaded on demand: the Word builder is only needed for a download.
-    const [{ rhcBlob, rhcFileName }, { loadLogo }] = await Promise.all([import("@/word/rhc-docx"), import("@/word/logo")]);
-    const blob = await rhcBlob({ header: record.header, insurerLabel: insurerLabels[record.insurer], draft: record.draft, dateRange: record.parsed?.dateRange ?? null, logo: await loadLogo() });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = rhcFileName(record.header);
-    a.click();
-    URL.revokeObjectURL(url);
-    dispatch({ type: "downloaded", caseIds: [record.id] });
-  };
-  const downloaded = record.downloadedRevision === record.revision;
-  const hasNextPending = nextPendingId(state.cases, record.id) !== null;
-
   return (
-    <div className="flex flex-col gap-6">
-      {record.state === "error" && record.error && record.selection ? (
-        <Alert variant="destructive" role="alert">
-          <AlertTitle>No se pudo generar el resumen</AlertTitle>
-          <AlertDescription>{record.error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {record.draft ? (
-        <>
-          <div ref={draftRef} tabIndex={-1} className="outline-none">
-            <DraftEditor record={record} />
-          </div>
-          <StepActions>
-            {reviewed ? (
-              <>
-                <MainAction onClick={download}>Descargar Word</MainAction>
-                {hasNextPending ? (
-                  <Button variant="outline" onClick={selectNextPending}>
-                    Siguiente pendiente →
-                  </Button>
-                ) : null}
-                {downloaded ? <span className="text-sm text-muted-foreground">Descargado</span> : null}
-              </>
-            ) : pending ? (
-              <>
-                <AlertDialog>
-                  <AlertDialogTrigger render={<MainAction />}>Revisé el contenido</AlertDialogTrigger>
-                  <AlertDialogContent initialFocus={cancelRef}>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>¿Confirmar con pendientes?</AlertDialogTitle>
-                      <AlertDialogDescription>{pending}. El caso entra al ZIP tal como está.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel ref={cancelRef}>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction onClick={confirmReview}>Confirmar igual</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-                <span className="text-sm text-muted-foreground">{pending}</span>
-              </>
-            ) : (
-              <MainAction onClick={confirmReview}>Revisé el contenido</MainAction>
-            )}
-            {record.feedbackStatus === "failed" ? (
-              <span className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
-                No se pudo guardar el feedback. El borrador y la descarga siguen disponibles.
-                <Button variant="ghost" size="sm" onClick={() => dispatch({ type: "feedback-status", caseId: record.id, status: "stale" })}>
-                  Reintentar
-                </Button>
-              </span>
-            ) : null}
-            {record.draft && !reviewed && record.reviewedRevision !== null ? (
-              <span className="text-sm text-muted-foreground">Hubo cambios: hace falta revisar de nuevo antes de copiar o descargar.</span>
-            ) : null}
-            {edited ? (
-              <AlertDialog>
-                <AlertDialogTrigger render={<Button variant="outline" />}>Regenerar</AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Regenerar el resumen?</AlertDialogTitle>
-                    <AlertDialogDescription>Se reemplazan las correcciones manuales que hiciste en este borrador.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => generate(record.id)}>Regenerar</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            ) : (
-              <Button variant="outline" onClick={() => generate(record.id)}>
-                Regenerar
-              </Button>
-            )}
-          </StepActions>
-        </>
-      ) : (
-        <StepActions>
-          <MainAction ref={generateRef} onClick={() => generate(record.id)}>
-            Generar resumen
-          </MainAction>
-        </StepActions>
-      )}
-    </div>
+    <>
+      <StepBody>
+        {record.state === "error" && record.error ? (
+          <Alert variant="destructive" role="alert" className="mb-5 max-w-2xl">
+            <AlertTitle>No se pudo generar el resumen</AlertTitle>
+            <AlertDescription>{record.error}</AlertDescription>
+          </Alert>
+        ) : null}
+        <div ref={draftRef} tabIndex={-1} className="outline-none">
+          <DraftEditor record={record} />
+        </div>
+      </StepBody>
+      <StepActions
+        status={
+          <>
+            {stale ? <span className="font-medium text-foreground">Hubo cambios: hay que revisar de nuevo.</span> : null}
+            <FeedbackNotice record={record} />
+          </>
+        }
+      >
+        {edited ? (
+          <AlertDialog>
+            <AlertDialogTrigger render={<Button variant="ghost" />}>Regenerar</AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Regenerar el resumen?</AlertDialogTitle>
+                <AlertDialogDescription>Se reemplazan las correcciones manuales.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={() => generate(record.id)}>Regenerar</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <Button variant="ghost" onClick={() => generate(record.id)}>
+            Regenerar
+          </Button>
+        )}
+        {reviewed ? (
+          <MainAction onClick={onCopy}>Copiar o descargar</MainAction>
+        ) : pending ? (
+          <AlertDialog>
+            <AlertDialogTrigger render={<MainAction />}>Revisé el contenido</AlertDialogTrigger>
+            <AlertDialogContent initialFocus={cancelRef}>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Confirmar igual?</AlertDialogTitle>
+                <AlertDialogDescription>{pending}.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel ref={cancelRef}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmReview}>Confirmar igual</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <MainAction onClick={confirmReview}>Revisé el contenido</MainAction>
+        )}
+      </StepActions>
+    </>
   );
 }
