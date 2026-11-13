@@ -63,7 +63,7 @@ test("admin creates a user, the user must change the temporary password, and a d
   await staffPage.goto("/");
   await expect(staffPage).toHaveURL(/\/sign-in$/);
   await signIn(staffPage, email, "staff-new-password-1");
-  await expect(staffPage.locator("form").getByRole("alert")).toContainText("deshabilitada");
+  await expect(staffPage.getByTestId("toast")).toContainText("deshabilitada");
   await staffContext.close();
 
   // Sign out returns to the sign-in screen.

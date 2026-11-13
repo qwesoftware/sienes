@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { showError } from "@/components/layout/toaster";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,7 +28,6 @@ type Credential = { email: string; password: string; reason: "created" | "reset"
 export function UsersAdmin({ initialUsers, currentUserId }: { initialUsers: UserRow[]; currentUserId: string }) {
   const [users, setUsers] = useState(initialUsers);
   const [credential, setCredential] = useState<Credential | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   function replace(updated: UserRow) {
@@ -36,7 +36,6 @@ export function UsersAdmin({ initialUsers, currentUserId }: { initialUsers: User
 
   async function act(user: UserRow, action: "disable" | "enable" | "reset-password") {
     setBusyId(user.id);
-    setError(null);
     try {
       const result = await apiFetch<{ user: UserRow; temporaryPassword?: string }>(`/api/admin/users/${user.id}`, {
         method: "POST",
@@ -47,7 +46,7 @@ export function UsersAdmin({ initialUsers, currentUserId }: { initialUsers: User
         setCredential({ email: result.user.email, password: result.temporaryPassword, reason: "reset" });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo completar la acción");
+      showError(err instanceof Error ? err.message : "No se pudo completar la acción");
     } finally {
       setBusyId(null);
     }
@@ -76,12 +75,6 @@ export function UsersAdmin({ initialUsers, currentUserId }: { initialUsers: User
               {credential.password}
             </code>
           </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {error ? (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -152,13 +145,11 @@ function NewUserDialog({ onCreated }: { onCreated: (user: UserRow, password: str
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("user");
-  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setPending(true);
-    setError(null);
     try {
       const result = await apiFetch<{ user: UserRow; temporaryPassword: string }>("/api/admin/users", {
         method: "POST",
@@ -170,7 +161,7 @@ function NewUserDialog({ onCreated }: { onCreated: (user: UserRow, password: str
       setEmail("");
       setRole("user");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear el usuario");
+      showError(err instanceof Error ? err.message : "No se pudo crear el usuario");
     } finally {
       setPending(false);
     }
@@ -209,11 +200,6 @@ function NewUserDialog({ onCreated }: { onCreated: (user: UserRow, password: str
               </ToggleGroup>
             </Field>
           </FieldGroup>
-          {error ? (
-            <Alert variant="destructive" role="alert">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancelar</DialogClose>
             <MainAction type="submit" className="h-8 px-3" disabled={pending || !name || !email}>
