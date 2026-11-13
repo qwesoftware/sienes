@@ -4,6 +4,7 @@ import { FileUp } from "lucide-react";
 import { useState } from "react";
 import { useWorkspace } from "@/case/store";
 import { cn } from "@/lib/utils";
+import { ExportHelp } from "./export-help";
 import { MainAction } from "./main-action";
 
 // The whole workspace takes dropped PDFs; the one file input lives here.
@@ -74,6 +75,7 @@ export function EmptyDrop() {
           Elegir PDF
         </MainAction>
         <p className="text-sm text-muted-foreground">Un PDF por paciente, hasta {limits.BATCH_MAX_PATIENTS}.</p>
+        <ExportHelp />
       </div>
     </div>
   );

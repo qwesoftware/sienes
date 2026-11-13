@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { showError } from "@/components/layout/toaster";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -15,7 +15,6 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   const mismatch = confirm.length > 0 && confirm !== newPassword;
@@ -25,24 +24,18 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
     event.preventDefault();
     if (mismatch || tooShort) return;
     setPending(true);
-    setError(null);
     try {
       await apiFetch("/api/account/password", { method: "POST", json: { currentPassword, newPassword } });
       router.replace("/");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo cambiar la contraseña");
+      showError(err instanceof Error ? err.message : "No se pudo cambiar la contraseña");
       setPending(false);
     }
   }
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-6" noValidate>
-      {forced ? (
-        <Alert>
-          <AlertDescription>Antes de continuar, elegí una contraseña nueva.</AlertDescription>
-        </Alert>
-      ) : null}
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="current">Contraseña actual</FieldLabel>
@@ -82,11 +75,6 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
           {mismatch ? <FieldDescription>Las contraseñas no coinciden.</FieldDescription> : null}
         </Field>
       </FieldGroup>
-      {error ? (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
       <MainAction type="submit" disabled={pending || !currentPassword || !newPassword || mismatch || tooShort}>
         {pending ? <Spinner data-icon="inline-start" aria-hidden /> : null}
         Cambiar contraseña

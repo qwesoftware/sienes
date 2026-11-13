@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { showError } from "@/components/layout/toaster";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -13,21 +13,19 @@ export function SignInForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!email || !password) {
-      setError("Completá el email y la contraseña.");
+      showError("Completá el email y la contraseña.");
       return;
     }
     setPending(true);
-    setError(null);
     const result = await authClient.signIn.email({ email, password });
     setPending(false);
     if (result.error) {
-      setError(
+      showError(
         result.error.code === "BANNED_USER"
           ? "La cuenta está deshabilitada. Consultá con el administrador."
           : "Email o contraseña incorrectos.",
@@ -64,11 +62,6 @@ export function SignInForm() {
           />
         </Field>
       </FieldGroup>
-      {error ? (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
       <MainAction type="submit" disabled={pending}>
         {pending ? <Spinner data-icon="inline-start" aria-hidden /> : null}
         Ingresar
